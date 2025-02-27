@@ -14,8 +14,7 @@
     "prepack": "npm run build && npm run compile-schemas",
     "pack": "gnome-extensions pack --force --extra-source=prefs.js --schema=schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml",
     "preinstall-extension": "npm run pack",
-    "install-extension": "gnome-extensions install --force junk-notification-cleaner@murar8.github.com.shell-extension.zip",
-    "clean": "rm -f *.js *.zip *.compiled"
+    "install-extension": "gnome-extensions install --force junk-notification-cleaner@murar8.github.com.shell-extension.zip"
   },
   "devDependencies": {
     "@girs/gjs": "^4.0.0-beta.21",

@@ -52,7 +52,7 @@ export default class JunkNotificationCleaner extends Extension {
               this.clearNotificationsForApp(app);
             }
           }
-        }
+        },
       );
     }
 
@@ -66,7 +66,7 @@ export default class JunkNotificationCleaner extends Extension {
           if (app) {
             this.clearNotificationsForApp(app);
           }
-        }
+        },
       );
     }
   }
