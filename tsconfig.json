@@ -1,0 +1,17 @@
+{
+  "files": ["ambient.d.ts", "extension.ts", "prefs.ts"],
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": ".",
+    "sourceMap": false,
+    "strict": true,
+    "strictBindCallApply": true,
+    "strictFunctionTypes": true,
+    "strictNullChecks": true,
+    "strictPropertyInitialization": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "lib": ["ES2022"]
+  }
+}

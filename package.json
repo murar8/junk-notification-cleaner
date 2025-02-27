@@ -1,0 +1,26 @@
+{
+  "name": "junk-notification-cleaner",
+  "version": "1.0.0",
+  "description": "GNOME extension to delete notifications when an application window is focused or closed.",
+  "type": "module",
+  "private": true,
+  "author": "Lorenzo Murarotto",
+  "license": "MIT",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc",
+    "format": "prettier --write .",
+    "compile-schemas": "glib-compile-schemas schemas",
+    "prepack": "npm run build && npm run compile-schemas",
+    "pack": "gnome-extensions pack --force --extra-source=prefs.js --schema=schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml",
+    "preinstall-extension": "npm run pack",
+    "install-extension": "gnome-extensions install --force junk-notification-cleaner@murar8.github.com.shell-extension.zip",
+    "clean": "rm -f *.js *.zip *.compiled"
+  },
+  "devDependencies": {
+    "@girs/gjs": "^4.0.0-beta.21",
+    "@girs/gnome-shell": "^47.0.2",
+    "prettier": "^3.5.2",
+    "typescript": "^5.7.3"
+  }
+}

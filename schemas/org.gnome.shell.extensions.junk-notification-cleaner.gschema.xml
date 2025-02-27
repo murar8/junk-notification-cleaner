@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.junk-notification-cleaner" path="/org/gnome/shell/extensions/junk-notification-cleaner/">
+    <key name="delete-on-focus" type="b">
+      <default>true</default>
+      <summary>Delete notifications when focusing app</summary>
+      <description>Delete notifications when an application window is focused.</description>
+    </key>
+    <key name="delete-on-close" type="b">
+      <default>true</default>
+      <summary>Delete notifications when closing app</summary>
+      <description>Delete notifications when an application window is closed.</description>
+    </key>
+    <key name="excluded-apps" type="as">
+      <default>[]</default>
+      <summary>Excluded applications</summary>
+      <description>List of application WM class names for which notifications should not be automatically deleted.</description>
+    </key>
+  </schema>
+</schemalist> 
