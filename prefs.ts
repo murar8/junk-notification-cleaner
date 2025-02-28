@@ -17,8 +17,8 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     page.add(generalGroup);
 
     const focusRow = new Adw.ActionRow({
-      title: "Delete on focus",
-      subtitle: "Delete notifications when an application window is focused",
+      title: "Delete on Focus",
+      subtitle: "Delete notifications when an application window is focused.",
     });
     const focusSwitch = new Gtk.Switch({
       active: settings.get_boolean("delete-on-focus"),
@@ -28,14 +28,14 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       "delete-on-focus",
       focusSwitch,
       "active",
-      Gio.SettingsBindFlags.DEFAULT,
+      Gio.SettingsBindFlags.DEFAULT
     );
     focusRow.add_suffix(focusSwitch);
     generalGroup.add(focusRow);
 
     const closeRow = new Adw.ActionRow({
-      title: "Delete on close",
-      subtitle: "Delete notifications when an application window is closed",
+      title: "Delete on Close",
+      subtitle: "Delete notifications when an application window is closed.",
     });
     const closeSwitch = new Gtk.Switch({
       active: settings.get_boolean("delete-on-close"),
@@ -45,15 +45,18 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       "delete-on-close",
       closeSwitch,
       "active",
-      Gio.SettingsBindFlags.DEFAULT,
+      Gio.SettingsBindFlags.DEFAULT
     );
     closeRow.add_suffix(closeSwitch);
     generalGroup.add(closeRow);
 
     const excludedGroup = new Adw.PreferencesGroup();
-    excludedGroup.set_title("Excluded Applications");
+    excludedGroup.set_title("Excluded WM Classes");
     excludedGroup.set_description(
-      "Applications whose notifications will not be automatically deleted",
+      [
+        "Window Manager Classes whose notifications will not be automatically deleted.",
+        "Will be matched against the wm_class property of the window, supports ECMAScript regular expressions.",
+      ].join("\n")
     );
     page.add(excludedGroup);
 
@@ -75,7 +78,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     excludedBox.append(listBox);
 
     for (const app of excludedApps) {
-      this._addExcludedAppRow(app, listBox, settings);
+      this.addExcludedAppRow(app, listBox, settings);
     }
 
     const addBox = new Gtk.Box({
@@ -85,7 +88,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     });
 
     const entry = new Gtk.Entry({
-      placeholder_text: "Enter WM class name (e.g. Org.gnome.Nautilus)",
+      placeholder_text: "Enter WM Class regex (e.g. .*firefox.*)",
       hexpand: true,
     });
 
@@ -96,17 +99,12 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
 
     addButton.connect("clicked", () => {
       const text = entry.get_text().trim();
-      if (text !== "") {
-        const currentApps = settings.get_strv("excluded-apps");
-        if (!currentApps.includes(text)) {
-          const newApps = [...currentApps, text];
-          settings.set_strv("excluded-apps", newApps);
-
-          this._addExcludedAppRow(text, listBox, settings);
-
-          entry.set_text("");
-        }
-      }
+      if (!text) return;
+      const currentApps = settings.get_strv("excluded-apps");
+      if (currentApps.includes(text)) return;
+      settings.set_strv("excluded-apps", [...currentApps, text]);
+      this.addExcludedAppRow(text, listBox, settings);
+      entry.set_text("");
     });
 
     addBox.append(entry);
@@ -116,10 +114,10 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     excludedGroup.add(excludedBox);
   }
 
-  _addExcludedAppRow(
+  addExcludedAppRow(
     app: string,
     listBox: Gtk.ListBox,
-    settings: Gio.Settings,
+    settings: Gio.Settings
   ): void {
     const row = new Gtk.ListBoxRow();
     const box = new Gtk.Box({
@@ -146,7 +144,6 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       const currentApps = settings.get_strv("excluded-apps");
       const newApps = currentApps.filter((a) => a !== app);
       settings.set_strv("excluded-apps", newApps);
-
       listBox.remove(row);
     });
 

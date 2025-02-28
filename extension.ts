@@ -1,8 +1,8 @@
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import Gio from "gi://Gio";
 import Meta from "gi://Meta";
 import Shell from "gi://Shell";
-import Gio from "gi://Gio";
+import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 declare module "resource:///org/gnome/shell/ui/messageTray.js" {
   interface Source {
@@ -17,9 +17,11 @@ export default class JunkNotificationCleaner extends Extension {
 
   private clearNotificationsForApp(window: Meta.Window) {
     const excludedApps = this.settings!.get_strv("excluded-apps");
-    if (excludedApps.includes(window.wm_class)) {
-      log(`Excluding ${window.wm_class}`);
-      return;
+    for (const wmClassPattern of excludedApps) {
+      if (new RegExp(wmClassPattern).test(window.wm_class)) {
+        log(`Not clearing notifications for ${window.wm_class}`);
+        return;
+      }
     }
 
     log(`Clearing notifications for ${window.wm_class}`);
