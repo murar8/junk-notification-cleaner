@@ -14,7 +14,7 @@
     <key name="excluded-apps" type="as">
       <default>[]</default>
       <summary>Excluded applications</summary>
-      <description>List of application WM class names for which notifications should not be automatically deleted.</description>
+      <description>List of application regex patterns for which notifications should not be automatically deleted.</description>
     </key>
   </schema>
 </schemalist> 
