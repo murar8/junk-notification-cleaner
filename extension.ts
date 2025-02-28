@@ -15,20 +15,17 @@ export default class JunkNotificationCleaner extends Extension {
   private closeListenerId: number | null = null;
   private settings: Gio.Settings | null = null;
 
-  private isAppExcluded(app: Shell.App): boolean {
-    if (!this.settings) return false;
+  private clearNotificationsForApp(window: Meta.Window) {
+    const excludedApps = this.settings!.get_strv("excluded-apps");
+    if (excludedApps.includes(window.wm_class)) {
+      log(`Excluding ${window.wm_class}`);
+      return;
+    }
 
-    const excludedApps = this.settings.get_strv("excluded-apps");
-    return excludedApps.includes(app.get_id());
-  }
-
-  private clearNotificationsForApp(app: Shell.App): void {
-    // Check if app is excluded
-    if (this.isAppExcluded(app)) return;
-
+    log(`Clearing notifications for ${window.wm_class}`);
     const sources = Main.messageTray.getSources();
     for (const source of sources) {
-      if (source.app?.get_id?.() === app.get_id()) {
+      if (source.app?.get_id?.() === window.gtk_application_id) {
         for (const notification of source.notifications) {
           notification.destroy();
         }
@@ -37,36 +34,23 @@ export default class JunkNotificationCleaner extends Extension {
   }
 
   enable() {
-    // Get settings
     this.settings = this.getSettings();
-
-    // Respect the delete-on-focus setting
     if (this.settings.get_boolean("delete-on-focus")) {
       this.focusListenerId = global.display.connect(
         "notify::focus-window",
         (display: Meta.Display) => {
-          if (display.focus_window) {
-            const tracker = Shell.WindowTracker.get_default();
-            const app = tracker.get_window_app(display.focus_window);
-            if (app) {
-              this.clearNotificationsForApp(app);
-            }
-          }
-        },
+          this.clearNotificationsForApp(display.focus_window);
+        }
       );
     }
-
-    // Respect the delete-on-close setting
     if (this.settings.get_boolean("delete-on-close")) {
       this.closeListenerId = global.window_manager.connect(
         "destroy",
         (_: unknown, actor: Meta.WindowActor) => {
-          const tracker = Shell.WindowTracker.get_default();
-          const app = tracker.get_window_app(actor.metaWindow);
-          if (app) {
-            this.clearNotificationsForApp(app);
+          if (actor.metaWindow) {
+            this.clearNotificationsForApp(actor.metaWindow);
           }
-        },
+        }
       );
     }
   }
@@ -80,6 +64,5 @@ export default class JunkNotificationCleaner extends Extension {
       global.window_manager.disconnect(this.closeListenerId);
       this.closeListenerId = null;
     }
-    this.settings = null;
   }
 }
