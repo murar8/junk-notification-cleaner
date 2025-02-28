@@ -27,8 +27,13 @@ export default class JunkNotificationCleaner extends Extension {
     log(`Clearing notifications for ${window.wm_class}`);
     const sources = Main.messageTray.getSources();
     for (const source of sources) {
-      if (source.app?.get_id?.() === window.gtk_application_id) {
-        for (const notification of source.notifications) {
+      const isSameWmClass = source.app
+        ?.get_windows()
+        ?.map((win) => win.wm_class)
+        ?.includes(window.wm_class);
+      if (isSameWmClass) {
+        // MUST create a copy of the notifications array before iterating!
+        for (const notification of [...source.notifications]) {
           notification.destroy();
         }
       }
@@ -60,11 +65,9 @@ export default class JunkNotificationCleaner extends Extension {
   disable() {
     if (this.focusListenerId !== null) {
       global.display.disconnect(this.focusListenerId);
-      this.focusListenerId = null;
     }
     if (this.closeListenerId !== null) {
       global.window_manager.disconnect(this.closeListenerId);
-      this.closeListenerId = null;
     }
   }
 }
