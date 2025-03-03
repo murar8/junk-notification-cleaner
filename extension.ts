@@ -8,28 +8,27 @@ export default class JunkNotificationCleaner extends Extension {
   private closeListenerId: number | null = null;
   private settings: Gio.Settings | null = null;
 
-  private clearNotificationsForApp(window: Meta.Window | null) {
-    if (!window) {
-      return;
-    }
+  private clearNotificationsForApp(
+    window: Meta.Window,
+    event: "focus" | "close"
+  ) {
+    const id = window.wmClass + " - " + window.title;
+    log(`[${id}] ${event} received, clearing notifications`);
 
     const excludedApps = this.settings!.get_strv("excluded-apps");
     for (const wmClassPattern of excludedApps) {
       if (new RegExp(wmClassPattern).test(window.wm_class)) {
-        log(`Not clearing notifications for ${window.wm_class}`);
+        log(`[${id}] excluded by ${wmClassPattern}`);
         return;
       }
     }
 
-    log(`Clearing notifications for ${window.wm_class}`);
     const sources = Main.messageTray.getSources();
     for (const source of sources) {
-      if (source.title === window.wm_class) {
+      if (source.title === window.wm_class || source.title === window.title) {
         for (const notification of [...source.notifications]) {
           notification.destroy();
-          log(
-            `Cleared notification '${notification.title}' for ${source.title}`
-          );
+          log(`[${id}] Cleared notification '${notification.title}'`);
         }
       }
     }
@@ -37,24 +36,22 @@ export default class JunkNotificationCleaner extends Extension {
 
   enable() {
     this.settings = this.getSettings();
-    if (this.settings.get_boolean("delete-on-focus")) {
-      this.focusListenerId = global.display.connect(
-        "notify::focus-window",
-        (display: Meta.Display) => {
-          this.clearNotificationsForApp(display.focus_window);
+    this.focusListenerId = global.display.connect(
+      "notify::focus-window",
+      ({ focusWindow }: Meta.Display) => {
+        if (this.settings!.get_boolean("delete-on-focus") && focusWindow) {
+          this.clearNotificationsForApp(focusWindow, "focus");
         }
-      );
-    }
-    if (this.settings.get_boolean("delete-on-close")) {
-      this.closeListenerId = global.window_manager.connect(
-        "destroy",
-        (_: unknown, actor: Meta.WindowActor) => {
-          if (actor.metaWindow) {
-            this.clearNotificationsForApp(actor.metaWindow);
-          }
+      }
+    );
+    this.closeListenerId = global.window_manager.connect(
+      "destroy",
+      (_: unknown, { metaWindow }: Meta.WindowActor) => {
+        if (this.settings!.get_boolean("delete-on-close") && metaWindow) {
+          this.clearNotificationsForApp(metaWindow, "close");
         }
-      );
-    }
+      }
+    );
   }
 
   disable() {
