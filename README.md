@@ -4,9 +4,9 @@ A GNOME Shell extension that automatically deletes notifications for an applicat
 
 ## Features
 
-- Automatically delete notifications when an application window is focused
-- Automatically delete notifications when an application window is closed
-- Exclude specific applications from automatic notification cleanup using regex patterns
+- Automatically delete notifications when an application window is focused.
+- Automatically delete notifications when an application window is closed.
+- Exclude specific applications from automatic notification cleanup using regex patterns.
 
 ## Preferences
 
@@ -18,9 +18,9 @@ gnome-extensions prefs junk-notification-cleaner@murar8.github.com
 
 ### Available Options:
 
-- **Delete on focus**: Enable/disable notification deletion when an application window is focused
-- **Delete on close**: Enable/disable notification deletion when an application window is closed
-- **Excluded Applications**: Regex patterns for applications that should be excluded from automatic notification cleanup
+- **Delete on focus**: Enable/disable notification deletion when an application window is focused.
+- **Delete on close**: Enable/disable notification deletion when an application window is closed.
+- **Excluded Applications**: Regex patterns for application WM_CLASS values that should be excluded from automatic notification cleanup.
 
 ## Installation
 
@@ -35,7 +35,7 @@ npm run install-extension
 ```
 npm run build                # Build the extension
 npm run compile-schemas      # Compile schemas
-npm run pack                 # Create extension package
+npm run package              # Create extension package
 npm run install-extension    # Install the extension
 npm run format               # Format code with prettier
 ```
