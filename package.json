@@ -11,9 +11,9 @@
     "build": "tsc",
     "format": "prettier --write .",
     "compile-schemas": "glib-compile-schemas schemas",
-    "prepackage": "npm run build && npm run compile-schemas",
+    "prepackage": "npm run build",
     "package": "gnome-extensions pack --force --extra-source=prefs.js --schema=schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml",
-    "preinstall-extension": "npm run package",
+    "preinstall-extension": "npm run package && npm run compile-schemas",
     "install-extension": "gnome-extensions install --force junk-notification-cleaner@murar8.github.com.shell-extension.zip"
   },
   "devDependencies": {
