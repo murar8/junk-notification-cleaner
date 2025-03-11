@@ -1,0 +1,7 @@
+{
+  "include": ["*.spec.ts"],
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"],
+    "composite": true
+  }
+}

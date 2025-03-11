@@ -1,16 +1,3 @@
-FROM node:lts-alpine AS builder
-
-USER node
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/home/node/.npm,uid=1000,gid=1000,mode=0755 npm ci
-
-COPY *.ts ./
-COPY *.json ./
-RUN npm run build
-
-
 FROM ubuntu:24.04
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
@@ -20,6 +7,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   gnome-shell-extension-manager \
   gnome-icon-theme \
   gnome-terminal \
+  xdotool \
+  libnotify-bin \
   zenity \
   at-spi2-core \
   ca-certificates \
@@ -31,6 +20,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   psutils \
   systemd \
   locales \
+  nodejs \
+  npm \
   x11-xserver-utils && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
@@ -43,11 +34,21 @@ RUN echo "$LANG UTF-8" >> /etc/locale.gen && \
   locale-gen $LANG && \
   update-locale LANG=$LANG
 
+RUN mkdir -p /app && chown -R ubuntu:ubuntu /app
+RUN mkdir -p /home/ubuntu/.local/share/gnome-shell/extensions/ && chown -R ubuntu:ubuntu /home/ubuntu/.local/share/gnome-shell/extensions/
+
+WORKDIR /app
+
+USER ubuntu
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/home/ubuntu/.npm,uid=1000,gid=1000,mode=0755 npm ci
+
+COPY *.ts ./
+COPY *.json ./
+RUN npm run build
+
 COPY schemas /app/schemas
-COPY --from=builder /app/*.js /app/metadata.json /app/
-RUN cd /app && gnome-extensions pack
-RUN mkdir -p /usr/share/gnome-shell/extensions/
-RUN unzip /app/junk-notification-cleaner@murar8.github.com.shell-extension.zip -d /usr/share/gnome-shell/extensions/junk-notification-cleaner@murar8.github.com
-RUN glib-compile-schemas /usr/share/gnome-shell/extensions/junk-notification-cleaner@murar8.github.com/schemas
+RUN gnome-extensions pack
 
 CMD ["/usr/bin/gnome-shell"]
