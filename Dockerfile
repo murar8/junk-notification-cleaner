@@ -6,7 +6,6 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   gnome-shell \
   gnome-shell-extension-manager \
   gnome-icon-theme \
-  gnome-terminal \
   xdotool \
   libnotify-bin \
   zenity \
@@ -34,8 +33,9 @@ RUN echo "$LANG UTF-8" >> /etc/locale.gen && \
   locale-gen $LANG && \
   update-locale LANG=$LANG
 
-RUN mkdir -p /app && chown -R ubuntu:ubuntu /app
-RUN mkdir -p /home/ubuntu/.local/share/gnome-shell/extensions/ && chown -R ubuntu:ubuntu /home/ubuntu/.local/share/gnome-shell/extensions/
+RUN mkdir -p /app && chown -R ubuntu:ubuntu /app && \
+  mkdir -p /home/ubuntu/.local/share/gnome-shell/extensions/ && \
+  chown -R ubuntu:ubuntu /home/ubuntu/.local/share/gnome-shell/extensions/
 
 WORKDIR /app
 
@@ -44,11 +44,13 @@ USER ubuntu
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/home/ubuntu/.npm,uid=1000,gid=1000,mode=0755 npm ci
 
-COPY *.ts ./
-COPY *.json ./
+COPY prefs.ts extension.ts ambient.d.ts tsconfig*.json ./
 RUN npm run build
 
+COPY metadata.json ./
 COPY schemas /app/schemas
 RUN gnome-extensions pack
+
+COPY *.spec.ts vitest.config.ts ./
 
 CMD ["/usr/bin/gnome-shell"]

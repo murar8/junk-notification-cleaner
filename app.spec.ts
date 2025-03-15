@@ -1,4 +1,6 @@
 import * as dbus from "@httptoolkit/dbus-native";
+import Gtk from "@girs/node-gtk-4.0";
+import GLib from "@girs/glib-2.0";
 import type { DBusClient } from "@httptoolkit/dbus-native";
 
 interface Notifications {
@@ -21,6 +23,7 @@ let client: DBusClient;
 let notifications: Notifications;
 
 beforeAll(async () => {
+  Gtk.initCheck();
   client = dbus.createClient({});
   notifications = await client
     .getService("org.freedesktop.Notifications")
@@ -30,9 +33,13 @@ beforeAll(async () => {
     );
 });
 
+afterAll(async () => {
+  await client.disconnect();
+});
+
 it("should clear notifications when the window is focused", async () => {
   const notificationId = await notifications.Notify(
-    "example",
+    "org.gnome.TextEditor",
     0,
     "",
     "summary 3",
@@ -41,4 +48,26 @@ it("should clear notifications when the window is focused", async () => {
     {},
     0
   );
+
+  const printHello = () => console.log("Hello");
+
+  const app = new Gtk.Application("com.github.romgrk.node-gtk.demo", 0);
+  app.on("activate", onActivate);
+  const status = app.run([]);
+
+  console.log("Finished with status:", status);
+
+  function onActivate() {
+    const window = new Gtk.ApplicationWindow(app);
+    window.setTitle("Window");
+    window.setDefaultSize(200, 200);
+
+    const button = Gtk.Button.newWithLabel("Hello World");
+    button.on("clicked", printHello);
+
+    window.setChild(button);
+    window.show();
+    window.present();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 300000000));
 });

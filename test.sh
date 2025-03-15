@@ -10,7 +10,7 @@ printf "\n\n Building docker image...\n\n"
 docker build -t x11docker/gnome .
 
 printf "\n\n Running docker container...\n\n"
-x11docker --desktop --init=systemd --name=gnome --network=host --gpu --xvfb x11docker/gnome &
+x11docker --desktop --init=systemd --name=gnome --network=host --gpu x11docker/gnome &
 
 printf "\n\n Waiting for docker container to start...\n\n"
 until docker inspect -f "{{.State.Running}}" gnome 2>/dev/null | grep -q "true"; do sleep 0.1; done
@@ -47,7 +47,6 @@ fi
 printf "\n\n Starting test...\n\n"
 docker exec -u "$USER" -e DBUS_SESSION_BUS_ADDRESS="$dbus_address" -e DISPLAY="$display" -w /app gnome npx vitest run
 
-printf "\n\n Stopping docker container...\n\n"
+printf "\n\n Stopping docker container...\n"
 docker stop gnome >/dev/null 2>&1 || true
-
 printf "\n\n Docker container stopped\n\n"
