@@ -7,6 +7,9 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
   gnome-shell-extension-manager \
   gnome-icon-theme \
   xdotool \
+  dconf-cli \
+  libxtst-dev \
+  xterm \
   libnotify-bin \
   zenity \
   at-spi2-core \
@@ -37,6 +40,13 @@ RUN mkdir -p /app && chown -R ubuntu:ubuntu /app && \
   mkdir -p /home/ubuntu/.local/share/gnome-shell/extensions/ && \
   chown -R ubuntu:ubuntu /home/ubuntu/.local/share/gnome-shell/extensions/
 
+RUN curl -fsSL https://github.com/fthx/no-overview/archive/refs/tags/v46.zip -o /app/no-overview.zip \
+  && mkdir -p /usr/share/gnome-shell/extensions/ \
+  && unzip /app/no-overview.zip -d /tmp/ \
+  && mv /tmp/no-overview-46 /usr/share/gnome-shell/extensions/no-overview@fthx \
+  && rm -rf /tmp/no-overview-46 \
+  && rm /app/no-overview.zip
+
 WORKDIR /app
 
 USER ubuntu
@@ -50,6 +60,19 @@ RUN npm run build
 COPY metadata.json ./
 COPY schemas /app/schemas
 RUN gnome-extensions pack
+
+USER root
+RUN mkdir -p /usr/share/gnome-shell/extensions/junk-notification-cleaner@murar8.github.com
+RUN unzip -d /usr/share/gnome-shell/extensions/junk-notification-cleaner@murar8.github.com /app/junk-notification-cleaner@murar8.github.com.shell-extension.zip
+RUN glib-compile-schemas /usr/share/gnome-shell/extensions/junk-notification-cleaner@murar8.github.com/schemas
+RUN mkdir -p /etc/dconf/profile
+RUN echo "user-db:user" >> /etc/dconf/profile/user
+RUN echo "system-db:local" >> /etc/dconf/profile/user
+RUN mkdir -p /etc/dconf/db/local.d/
+RUN echo "[org/gnome/shell]\nenabled-extensions=['junk-notification-cleaner@murar8.github.com', 'no-overview@fthx']" > /etc/dconf/db/local.d/00-extensions
+RUN dconf update
+
+USER ubuntu
 
 COPY *.spec.ts vitest.config.ts ./
 

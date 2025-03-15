@@ -1,73 +1,50 @@
-import * as dbus from "@httptoolkit/dbus-native";
-import Gtk from "@girs/node-gtk-4.0";
-import GLib from "@girs/glib-2.0";
-import type { DBusClient } from "@httptoolkit/dbus-native";
+import { ChildProcess, exec, spawn } from "child_process";
+import * as util from "util";
 
-interface Notifications {
-  GetCapabilities(): Promise<string[]>;
-  Notify(
-    app_name: string,
-    replaces_id: number,
-    app_icon: string,
-    summary: string,
-    body: string,
-    actions: string[],
-    hints: Record<string, any>,
-    expire_timeout: number
-  ): Promise<number>;
-  CloseNotification(id: number): Promise<void>;
-  GetServerInformation(): Promise<[string, string, string, string]>;
+const execAsync = util.promisify(exec);
+
+function wait(ms: number = 800) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-let client: DBusClient;
-let notifications: Notifications;
+function spawnZenity(title: string) {
+  return spawn("zenity", ["--info", "--title", title]);
+}
 
-beforeAll(async () => {
-  Gtk.initCheck();
-  client = dbus.createClient({});
-  notifications = await client
-    .getService("org.freedesktop.Notifications")
-    .getInterface<Notifications>(
-      "/org/freedesktop/Notifications",
-      "org.freedesktop.Notifications"
-    );
-});
+function spawnNotifySend(title: string) {
+  return spawn("notify-send", ["--wait", "-a", title, "Hi!"]);
+}
 
-afterAll(async () => {
-  await client.disconnect();
-});
+describe("clear notifications by title", () => {
+  let windowBg: ChildProcess;
+  let windowFg: ChildProcess;
 
-it("should clear notifications when the window is focused", async () => {
-  const notificationId = await notifications.Notify(
-    "org.gnome.TextEditor",
-    0,
-    "",
-    "summary 3",
-    "new message text",
-    [],
-    {},
-    0
-  );
+  beforeEach(async () => {
+    windowBg = spawnZenity("TestApp");
+    await wait();
+    windowFg = spawnZenity("OtherApp");
+    await wait();
+  });
 
-  const printHello = () => console.log("Hello");
+  afterEach(() => {
+    windowBg.kill();
+    windowFg.kill();
+  });
 
-  const app = new Gtk.Application("com.github.romgrk.node-gtk.demo", 0);
-  app.on("activate", onActivate);
-  const status = app.run([]);
+  it("should clear notifications when the window is closed", async () => {
+    await wait();
+    const notification = spawnNotifySend("TestApp");
+    await wait();
+    windowBg.kill();
+    await wait();
+    expect(notification.exitCode).toBe(0);
+  });
 
-  console.log("Finished with status:", status);
-
-  function onActivate() {
-    const window = new Gtk.ApplicationWindow(app);
-    window.setTitle("Window");
-    window.setDefaultSize(200, 200);
-
-    const button = Gtk.Button.newWithLabel("Hello World");
-    button.on("clicked", printHello);
-
-    window.setChild(button);
-    window.show();
-    window.present();
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300000000));
+  it("should clear notifications when the window is focused", async () => {
+    const notification = spawnNotifySend("TestApp");
+    await wait();
+    windowFg.kill();
+    await wait();
+    expect(notification.exitCode).toBe(0);
+  });
 });
