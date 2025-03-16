@@ -3,6 +3,8 @@ import Gio from "gi://Gio";
 import Meta from "gi://Meta";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
+const ID_SEP = " ::: ";
+
 export default class JunkNotificationCleaner extends Extension {
   private focusListenerId: number | null = null;
   private closeListenerId: number | null = null;
@@ -12,12 +14,12 @@ export default class JunkNotificationCleaner extends Extension {
     window: Meta.Window,
     event: "focus" | "close"
   ) {
-    const id = window.wmClass + " - " + window.title;
+    const id = [window.get_id(), window.wmClass, window.title].join(ID_SEP);
     log(`[${id}] ${event} received, clearing notifications`);
 
     const excludedApps = this.settings!.get_strv("excluded-apps");
     for (const wmClassPattern of excludedApps) {
-      if (new RegExp(wmClassPattern).test(window.wm_class)) {
+      if (new RegExp(wmClassPattern).test(window.wmClass)) {
         log(`[${id}] excluded by ${wmClassPattern}`);
         return;
       }
@@ -25,10 +27,20 @@ export default class JunkNotificationCleaner extends Extension {
 
     const sources = Main.messageTray.getSources();
     for (const source of sources) {
-      if (source.title === window.wm_class || source.title === window.title) {
+      if (
+        source.title === window.wmClass ||
+        source.title === window.title ||
+        source.iconName === window.wmClass ||
+        source.iconName === window.title ||
+        window.title?.endsWith(" " + source.title)
+      ) {
+        const sourceId = [source.title, source.iconName].join(ID_SEP);
+        const count = source.notifications.length;
+        log(`[${id}] clearing ${count} notifications for ${sourceId}`);
         for (const notification of [...source.notifications]) {
+          const notificationId = [sourceId, notification.title].join(ID_SEP);
+          log(`[${id}] clearing ${notificationId}`);
           notification.destroy();
-          log(`[${id}] Cleared notification '${notification.title}'`);
         }
       }
     }
