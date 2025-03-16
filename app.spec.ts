@@ -3,48 +3,123 @@ import * as util from "util";
 
 const execAsync = util.promisify(exec);
 
-function wait(ms: number = 800) {
+/**
+ * Wait for the given amount of milliseconds.
+ */
+function wait(ms: number = 600) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function spawnZenity(title: string) {
-  return spawn("zenity", ["--info", "--title", title]);
+/**
+ * Edit the window manager class of the given window.
+ */
+function editClass(title: string, className: string) {
+  return execAsync(
+    `xdotool search --name "${title}" set_window --class "${className}"`
+  );
 }
 
-function spawnNotifySend(title: string) {
-  return spawn("notify-send", ["--wait", "-a", title, "Hi!"]);
+/**
+ * Spawn a zenity window with the given title and class.
+ */
+async function spawnZenity(
+  title: string,
+  className: string = "com.murar8.TestApp"
+) {
+  const child = spawn("zenity", ["--info", "--title", title]);
+  await wait();
+  await editClass(title, className);
+  return child;
 }
 
-describe("clear notifications by title", () => {
-  let windowBg: ChildProcess;
-  let windowFg: ChildProcess;
+/**
+ * Spawn a notify-send notification with the given title.
+ */
+async function spawnNotifySend(title: string) {
+  const child = spawn("notify-send", ["--wait", "-a", title, "Hi!"]);
+  await wait();
+  return child;
+}
 
-  beforeEach(async () => {
-    windowBg = spawnZenity("TestApp");
-    await wait();
-    windowFg = spawnZenity("OtherApp");
-    await wait();
-  });
+/**
+ * Write a setting to the extension's dconf key.
+ */
+async function writeSetting(key: string, value: string) {
+  await execAsync(
+    `dconf write /org/gnome/shell/extensions/junk-notification-cleaner/${key} "${value}"`
+  );
+}
 
-  afterEach(() => {
-    windowBg.kill();
-    windowFg.kill();
-  });
+/**
+ * Close the given window.
+ */
+async function closeWindow(window: ChildProcess) {
+  window.kill();
+  await wait();
+}
 
-  it("should clear notifications when the window is closed", async () => {
-    await wait();
-    const notification = spawnNotifySend("TestApp");
-    await wait();
-    windowBg.kill();
-    await wait();
-    expect(notification.exitCode).toBe(0);
-  });
+let windowTest: ChildProcess;
+let windowUnrelated: ChildProcess;
 
-  it("should clear notifications when the window is focused", async () => {
-    const notification = spawnNotifySend("TestApp");
-    await wait();
-    windowFg.kill();
-    await wait();
-    expect(notification.exitCode).toBe(0);
-  });
+beforeEach(async () => {
+  windowTest = await spawnZenity("TestApp");
+  windowUnrelated = await spawnZenity("OtherApp");
+});
+
+afterEach(async () => {
+  await Promise.allSettled([
+    closeWindow(windowTest),
+    closeWindow(windowUnrelated),
+  ]);
+});
+
+it("should clear notifications by title when the window is closed", async () => {
+  const notification = await spawnNotifySend("TestApp");
+  await closeWindow(windowTest);
+  expect(notification.exitCode).toBe(0);
+});
+
+it("should clear notifications by title when the window is focused", async () => {
+  const notification = await spawnNotifySend("TestApp");
+  await closeWindow(windowUnrelated);
+  expect(notification.exitCode).toBe(0);
+});
+
+it("should clear notifications by window class when the window is closed", async () => {
+  const notification = await spawnNotifySend("com.murar8.TestApp");
+  await closeWindow(windowTest);
+  expect(notification.exitCode).toBe(0);
+});
+
+it("should clear notifications by window class when the window is focused", async () => {
+  const notification = await spawnNotifySend("com.murar8.TestApp");
+  await closeWindow(windowUnrelated);
+  expect(notification.exitCode).toBe(0);
+});
+
+it("should not clear notifications for other apps", async () => {
+  const notification = await spawnNotifySend("UnrelatedApp");
+  await Promise.all([closeWindow(windowTest), closeWindow(windowUnrelated)]);
+  expect(notification.exitCode).toBe(null);
+});
+
+it("should respect excluded-apps setting", async () => {
+  await writeSetting("excluded-apps", "['com.murar8.TestApp']");
+  const notification = await spawnNotifySend("TestApp");
+  await closeWindow(windowUnrelated);
+  expect(notification.exitCode).toBe(null);
+});
+
+it("should respect delete-on-focus setting", async () => {
+  await writeSetting("delete-on-focus", "false");
+  const notification = await spawnNotifySend("TestApp");
+  await closeWindow(windowTest);
+  expect(notification.exitCode).toBe(null);
+});
+
+it("should respect delete-on-close setting", async () => {
+  await writeSetting("delete-on-close", "false");
+  const notification = await spawnNotifySend("TestApp");
+  await closeWindow(windowTest);
+  expect(notification.exitCode).toBe(null);
 });
