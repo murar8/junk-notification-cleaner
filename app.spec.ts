@@ -6,7 +6,7 @@ const execAsync = util.promisify(exec);
 /**
  * Wait for the given amount of milliseconds.
  */
-function wait(ms: number = 600) {
+function wait(ms: number = 800) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -35,8 +35,10 @@ async function spawnZenity(
 /**
  * Spawn a notify-send notification with the given title.
  */
-async function spawnNotifySend(title: string) {
-  const child = spawn("notify-send", ["--wait", "-a", title, "Hi!"]);
+async function spawnNotifySend(title: string, icon?: string) {
+  const args = ["--wait", "-a", title, "Hi!"];
+  if (icon) args.push("--icon", icon);
+  const child = spawn("notify-send", args);
   await wait();
   return child;
 }
@@ -86,13 +88,13 @@ it("should clear notifications by title when the window is focused", async () =>
 });
 
 it("should clear notifications by window class when the window is closed", async () => {
-  const notification = await spawnNotifySend("com.murar8.TestApp");
+  const notification = await spawnNotifySend("AppTitle", "com.murar8.TestApp");
   await closeWindow(windowTest);
   expect(notification.exitCode).toBe(0);
 });
 
 it("should clear notifications by window class when the window is focused", async () => {
-  const notification = await spawnNotifySend("com.murar8.TestApp");
+  const notification = await spawnNotifySend("AppTitle", "com.murar8.TestApp");
   await closeWindow(windowUnrelated);
   expect(notification.exitCode).toBe(0);
 });
