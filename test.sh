@@ -62,8 +62,15 @@ done
 
 echo
 echo "Building docker image..."
+
+docker_build_args=(-t x11docker/gnome)
+if [ -n "${GITHUB_SHA:-}" ]; then
+    echo "Using github actions cache"
+    docker_build_args+=("--cache-from=type=gha" "--cache-to=type=gha,mode=max")
+fi
+
 echo
-docker build -t x11docker/gnome .
+docker build "${docker_build_args[@]}" .
 
 echo
 echo "Running docker container..."
