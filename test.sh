@@ -79,7 +79,15 @@ x11docker "${args[@]}" x11docker/gnome >"$log_file" 2>&1 &
 echo
 echo "Waiting for docker container to start..."
 until docker inspect -f "{{.State.Running}}" gnome 2>/dev/null | grep -q "true"; do
-    sleep 0.1
+    # if container exists
+    if [ "$(docker inspect -f "{{.State.Running}}" gnome 2>/dev/null)" = "false" ]; then
+        echo "Container exited unexpectedly"
+        echo "Dumping logs:"
+        cat "$log_file"
+        exit 1
+    else
+        sleep 0.1
+    fi
 done
 
 echo "Waiting for gnome-shell to start..."

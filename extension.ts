@@ -1,8 +1,8 @@
-import type Gio from "gi://Gio";
-import type Meta from "gi://Meta";
-import type { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
+import Gio from "gi://Gio";
+import Meta from "gi://Meta";
+import { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
 
-import Main from "resource:///org/gnome/shell/ui/main.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 
 function getWindowLabel(window: Meta.Window) {
@@ -51,7 +51,7 @@ export default class JunkNotificationCleaner extends Extension {
 
   private clearNotificationsForApp(
     window: Meta.Window,
-    event: "focus" | "close"
+    event: "focus" | "close",
   ) {
     const windowLabel = getWindowLabel(window);
     log(`${windowLabel}: ${event} received, clearing notifications`);
@@ -85,7 +85,7 @@ export default class JunkNotificationCleaner extends Extension {
         if (this.settings!.get_boolean("delete-on-focus") && focusWindow) {
           this.clearNotificationsForApp(focusWindow, "focus");
         }
-      }
+      },
     );
     this.closeListenerId = global.window_manager.connect(
       "destroy",
@@ -93,7 +93,7 @@ export default class JunkNotificationCleaner extends Extension {
         if (this.settings!.get_boolean("delete-on-close") && metaWindow) {
           this.clearNotificationsForApp(metaWindow, "close");
         }
-      }
+      },
     );
   }
 

@@ -28,7 +28,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       "delete-on-focus",
       focusSwitch,
       "active",
-      Gio.SettingsBindFlags.DEFAULT
+      Gio.SettingsBindFlags.DEFAULT,
     );
     focusRow.add_suffix(focusSwitch);
     generalGroup.add(focusRow);
@@ -45,7 +45,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       "delete-on-close",
       closeSwitch,
       "active",
-      Gio.SettingsBindFlags.DEFAULT
+      Gio.SettingsBindFlags.DEFAULT,
     );
     closeRow.add_suffix(closeSwitch);
     generalGroup.add(closeRow);
@@ -56,7 +56,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       [
         "Window Manager Classes whose notifications will not be automatically deleted.",
         "Will be matched against the wm_class property of the window, supports ECMAScript regular expressions.",
-      ].join("\n")
+      ].join("\n"),
     );
     page.add(excludedGroup);
 
@@ -117,7 +117,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   addExcludedAppRow(
     app: string,
     listBox: Gtk.ListBox,
-    settings: Gio.Settings
+    settings: Gio.Settings,
   ): void {
     const row = new Gtk.ListBoxRow();
     const box = new Gtk.Box({

@@ -9,6 +9,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - run: curl -fsSL https://raw.githubusercontent.com/mviereck/x11docker/v7.6.0/x11docker | sudo bash -s -- --update

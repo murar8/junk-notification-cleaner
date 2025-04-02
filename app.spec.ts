@@ -15,7 +15,7 @@ function wait(ms: number = 800) {
  */
 function editClass(title: string, className: string) {
   return execAsync(
-    `xdotool search --name "${title}" set_window --class "${className}"`
+    `xdotool search --name "${title}" set_window --class "${className}"`,
   );
 }
 
@@ -24,7 +24,7 @@ function editClass(title: string, className: string) {
  */
 async function spawnZenity(
   title: string,
-  className: string = "com.murar8.TestApp"
+  className: string = "com.murar8.TestApp",
 ) {
   const child = spawn("zenity", ["--info", "--title", title]);
   await wait();
@@ -48,7 +48,7 @@ async function spawnNotifySend(title: string, icon?: string) {
  */
 async function writeSetting(key: string, value: string) {
   await execAsync(
-    `dconf write /org/gnome/shell/extensions/junk-notification-cleaner/${key} "${value}"`
+    `dconf write /org/gnome/shell/extensions/junk-notification-cleaner/${key} "${value}"`,
   );
 }
 
