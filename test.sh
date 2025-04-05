@@ -19,17 +19,10 @@ function stop_docker_container() {
     fi
 }
 
-X11DOCKER_ARGS=(--desktop --init=systemd --name=gnome --gpu --xauth=no --printenv)
+X11DOCKER_ARGS=(--desktop --init=systemd --name=gnome --gpu --xauth=no --printenv --printcheck --xorg)
 LOG_DESTINATION=/dev/stderr
 while [[ $# -gt 0 ]]; do
     case $1 in
-    --xvfb)
-        echo "Using xvfb in headless mode"
-        X11DOCKER_ARGS+=("--xvfb")
-        X11DOCKER_ARGS+=("--xc=no")
-        X11DOCKER_ARGS+=("--size=1920x1080")
-        shift
-        ;;
     --log-file)
         echo "Redirecting x11docker logs to $2"
         LOG_DESTINATION="$2"
@@ -44,7 +37,7 @@ while [[ $# -gt 0 ]]; do
     -h | --help)
         echo "Usage: $0 [options]"
         echo "Options:"
-        echo "  --xvfb            Run in headless mode"
+        echo "  --headless        Run in headless mode"
         echo "  --log-file <file> Output x11docker logs to <file>"
         echo "  --no-exit         Join x11docker container after test"
         echo "  --help            Show this help message"
