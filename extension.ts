@@ -38,6 +38,7 @@ function isMatch(window: Meta.Window, source: Source) {
     }
   }
   return (
+    source.title &&
     // For Proton Mail Bridge source title is the same as the window title.
     // i.e. Proton Mail Bridge
     source.title === window.title
