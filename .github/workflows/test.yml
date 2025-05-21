@@ -12,12 +12,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update
-      - run: sudo apt-get install -y weston xwayland xdotool xpra nxagent xinit xauth xclip x11-xserver-utils x11-utils catatonit jq
-      - run: curl -fsSL https://raw.githubusercontent.com/mviereck/x11docker/v7.6.0/x11docker | sudo bash -s -- --update
-      - run: ./test.sh -- --xvfb
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          path: x11docker.log
-          name: x11docker.log
+      - uses: actions/setup-node@v4
+      - run: npm ci
+      - run: npm run test
+      - run: npm run format:check

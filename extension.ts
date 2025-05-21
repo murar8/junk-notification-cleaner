@@ -20,7 +20,6 @@ function getSourceLabel(source: Source) {
 }
 
 function isMatch(window: Meta.Window, source: Source) {
-  const sandboxedAppId = window.get_sandboxed_app_id();
   if (source.icon) {
     const icon = source.icon.to_string();
     if (
@@ -29,7 +28,7 @@ function isMatch(window: Meta.Window, source: Source) {
       icon === window.gtkApplicationId ||
       // For Slack Flatpak (and maybe other flatpaks and snaps) source icon is the same as the app id
       // i.e. com.slack.Slack
-      icon === sandboxedAppId ||
+      icon === window.get_sandboxed_app_id() ||
       // For Firefox deb source icon is the same as the window manager class
       // i.e. firefox
       icon === window.wmClass
