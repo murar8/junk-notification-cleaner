@@ -51,7 +51,7 @@ export default class JunkNotificationCleaner extends Extension {
 
   private clearNotificationsForApp(
     window: Meta.Window,
-    event: "focus" | "close",
+    event: "focus" | "close"
   ) {
     const windowLabel = getWindowLabel(window);
     log(`${windowLabel}: ${event} received, clearing notifications`);
@@ -85,7 +85,7 @@ export default class JunkNotificationCleaner extends Extension {
         if (this.settings!.get_boolean("delete-on-focus") && focusWindow) {
           this.clearNotificationsForApp(focusWindow, "focus");
         }
-      },
+      }
     );
     this.closeListenerId = global.window_manager.connect(
       "destroy",
@@ -93,7 +93,7 @@ export default class JunkNotificationCleaner extends Extension {
         if (this.settings!.get_boolean("delete-on-close") && metaWindow) {
           this.clearNotificationsForApp(metaWindow, "close");
         }
-      },
+      }
     );
   }
 

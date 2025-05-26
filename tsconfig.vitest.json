@@ -1,5 +1,5 @@
 {
-  "include": ["*.spec.ts"],
+  "include": ["ambient.d.ts", "extension.ts", "prefs.ts", "*.spec.ts"],
   "compilerOptions": {
     "types": ["node", "vitest/globals"],
     "composite": true
