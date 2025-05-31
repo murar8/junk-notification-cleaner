@@ -3,3 +3,4 @@ schemas/*.compiled
 *.js
 *.zip
 *.tsbuildinfo
+coverage/

@@ -1,5 +1,6 @@
 {
-  "include": ["ambient.d.ts", "extension.ts", "prefs.ts", "*.spec.ts"],
+  "extends": "./tsconfig.json",
+  "include": ["*.spec.ts"],
   "compilerOptions": {
     "types": ["node", "vitest/globals"],
     "composite": true
