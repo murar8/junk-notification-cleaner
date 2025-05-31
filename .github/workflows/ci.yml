@@ -8,11 +8,18 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: write
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
       - run: npm ci
       - run: npm run format:check
       - run: npm run test:coverage
@@ -22,7 +29,9 @@ jobs:
         with:
           fail_ci_if_error: true
       - run: sudo apt-get install --yes --no-install-recommends gnome-shell
+        if: github.ref_type == 'tag'
       - run: npm run package
+        if: github.ref_type == 'tag'
       - uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'
         with:
