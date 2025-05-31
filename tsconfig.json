@@ -1,7 +1,6 @@
 {
   "files": ["ambient.d.ts"],
   "include": ["extension.ts", "prefs.ts"],
-  "exclude": ["node_modules", "*.js"],
   "references": [{ "path": "./tsconfig.vitest.json" }],
   "compilerOptions": {
     "module": "NodeNext",
@@ -15,7 +14,6 @@
     "strictPropertyInitialization": true,
     "skipLibCheck": true,
     "target": "ES2022",
-    "lib": ["ES2022"],
-    "declaration": true
+    "lib": ["ES2022"]
   }
 }
