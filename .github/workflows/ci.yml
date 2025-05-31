@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - run: sudo apt-get install --yes --no-install-recommends gnome-shell
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
       - run: npm ci
@@ -22,6 +21,7 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           fail_ci_if_error: true
+      - run: sudo apt-get install --yes --no-install-recommends gnome-shell
       - run: npm run package
       - uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'

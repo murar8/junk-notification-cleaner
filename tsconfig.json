@@ -1,7 +1,6 @@
 {
-  "files": ["ambient.d.ts"],
-  "include": ["extension.ts", "prefs.ts"],
-  "references": [{ "path": "./tsconfig.vitest.json" }],
+  "include": ["ambient.d.ts", "extension.ts", "prefs.ts"],
+  "exclude": ["node_modules", "*.js"],
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

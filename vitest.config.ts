@@ -7,6 +7,9 @@ export default defineConfig({
     mockReset: true,
     include: ["*.spec.ts"],
     exclude: ["*.js"],
+    typecheck: {
+      tsconfig: "./tsconfig.vitest.json",
+    },
     coverage: {
       include: ["extension.ts", "helpers.ts"],
     },

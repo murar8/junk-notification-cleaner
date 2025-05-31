@@ -2,7 +2,6 @@
   "extends": "./tsconfig.json",
   "include": ["ambient.d.ts", "extension.ts", "extension.spec.ts"],
   "compilerOptions": {
-    "types": ["node", "vitest/globals"],
-    "composite": true
+    "types": ["node", "vitest/globals"]
   }
 }
