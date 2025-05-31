@@ -1,5 +1,5 @@
 {
-  "files": ["ambient.d.ts", "extension.ts", "prefs.ts", "helpers.ts"],
+  "files": ["ambient.d.ts", "extension.ts", "prefs.ts"],
   "exclude": ["node_modules", "*.js"],
   "references": [{ "path": "./tsconfig.vitest.json" }],
   "compilerOptions": {
