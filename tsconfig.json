@@ -1,5 +1,6 @@
 {
-  "files": ["ambient.d.ts", "extension.ts", "prefs.ts"],
+  "files": ["ambient.d.ts"],
+  "include": ["extension.ts", "prefs.ts"],
   "exclude": ["node_modules", "*.js"],
   "references": [{ "path": "./tsconfig.vitest.json" }],
   "compilerOptions": {
@@ -15,6 +16,6 @@
     "skipLibCheck": true,
     "target": "ES2022",
     "lib": ["ES2022"],
-    "incremental": true
+    "declaration": true
   }
 }
