@@ -6,6 +6,7 @@ export default defineConfig({
     restoreMocks: true,
     mockReset: true,
     include: ["*.spec.ts"],
+    exclude: ["*.js"],
     coverage: {
       include: ["extension.ts", "helpers.ts"],
     },

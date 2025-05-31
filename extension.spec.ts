@@ -128,11 +128,11 @@ it.each([
     expect(log).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      `Window(Title: Test, WMClass: ${wmClass}, GTKAppId: <empty>, SandboxedAppId: <empty>): focus received, clearing notifications`
+      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): focus received, clearing notifications`
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `Window(Title: Test, WMClass: ${wmClass}, GTKAppId: <empty>, SandboxedAppId: <empty>): clearing notification for Source(Title: Test, Icon: <empty>)`
+      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: '<empty>')`
     );
   }
 );
@@ -170,11 +170,11 @@ it("should clear notifications for app on close", () => {
   expect(log).toHaveBeenCalledTimes(2);
   expect(log).toHaveBeenNthCalledWith(
     1,
-    "Window(Title: Test, WMClass: <empty>, GTKAppId: <empty>, SandboxedAppId: <empty>): close received, clearing notifications"
+    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): close received, clearing notifications"
   );
   expect(log).toHaveBeenNthCalledWith(
     2,
-    "Window(Title: Test, WMClass: <empty>, GTKAppId: <empty>, SandboxedAppId: <empty>): clearing notification for Source(Title: Test, Icon: <empty>)"
+    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: '<empty>')"
   );
 });
 
@@ -222,11 +222,11 @@ it("should not clear notifications for other apps", () => {
   expect(log).toHaveBeenCalledTimes(2);
   expect(log).toHaveBeenNthCalledWith(
     1,
-    "Window(Title: Test, WMClass: <empty>, GTKAppId: <empty>, SandboxedAppId: <empty>): focus received, clearing notifications"
+    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): focus received, clearing notifications"
   );
   expect(log).toHaveBeenNthCalledWith(
     2,
-    "Window(Title: Test, WMClass: <empty>, GTKAppId: <empty>, SandboxedAppId: <empty>): clearing notification for Source(Title: Test, Icon: test-icon)"
+    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: 'test-icon')"
   );
 });
 
@@ -276,11 +276,11 @@ it.each([
     expect(log).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      `Window(Title: Test, WMClass: ${wmClass}, GTKAppId: com.app.test.gtkId, SandboxedAppId: com.app.test.sandboxedId): focus received, clearing notifications`
+      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): focus received, clearing notifications`
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `Window(Title: Test, WMClass: ${wmClass}, GTKAppId: com.app.test.gtkId, SandboxedAppId: com.app.test.sandboxedId): excluded by ${excludedApps.find(
+      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by ${excludedApps.find(
         (a) => new RegExp(a).exec(focusWindow.wmClass)
       )}`
     );
