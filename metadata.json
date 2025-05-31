@@ -2,7 +2,7 @@
   "name": "Junk Notification Cleaner",
   "description": "Delete notifications for an application when its window is focused or closed.",
   "uuid": "junk-notification-cleaner@murar8.github.com",
-  "shell-version": ["46"],
+  "shell-version": ["46", "47", "48"],
   "settings-schema": "org.gnome.shell.extensions.junk-notification-cleaner",
   "url": "https://github.com/murar8/junk-notification-cleaner"
 }
