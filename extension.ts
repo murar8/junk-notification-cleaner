@@ -104,5 +104,8 @@ export default class JunkNotificationCleaner extends Extension {
     if (this.closeListenerId !== null) {
       global.window_manager.disconnect(this.closeListenerId);
     }
+    if (this.settings) {
+      this.settings = null;
+    }
   }
 }
