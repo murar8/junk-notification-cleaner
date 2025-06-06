@@ -5,7 +5,7 @@ import type {
   Source,
 } from "resource:///org/gnome/shell/ui/messageTray.js";
 
-import JunkNotificationCleaner from "./extension.js";
+import JunkNotificationCleaner from "../src/extension.js";
 
 Object.assign(global, {
   display: { connect: vi.fn(), disconnect: vi.fn() },

@@ -5,13 +5,13 @@ export default defineConfig({
     globals: true,
     restoreMocks: true,
     mockReset: true,
-    include: ["*.spec.ts"],
-    exclude: ["*.js"],
+    include: ["test/**/*.spec.ts"],
     typecheck: {
-      tsconfig: "./tsconfig.vitest.json",
+      enabled: true,
+      include: ["test/**/*.spec.ts"],
     },
     coverage: {
-      include: ["extension.ts", "helpers.ts"],
+      include: ["src/extension.ts", "src/isMatch.ts"],
     },
   },
 });

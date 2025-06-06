@@ -1,18 +1,24 @@
 {
-  "include": ["ambient.d.ts", "extension.ts", "prefs.ts"],
-  "exclude": ["node_modules", "*.js"],
+  "files": [
+    "ambient.d.ts",
+    "src/extension.ts",
+    "src/prefs.ts",
+    "src/isMatch.ts"
+  ],
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "outDir": ".",
+    "outDir": "dist",
     "sourceMap": false,
     "strict": true,
     "strictBindCallApply": true,
     "strictFunctionTypes": true,
     "strictNullChecks": true,
     "strictPropertyInitialization": true,
+    "removeComments": false,
     "skipLibCheck": true,
     "target": "ES2022",
-    "lib": ["ES2022"]
+    "lib": ["ES2022"],
+    "baseUrl": "src"
   }
 }

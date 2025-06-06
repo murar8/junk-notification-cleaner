@@ -32,13 +32,16 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           fail_ci_if_error: true
-      - run: sudo apt-get install --yes --no-install-recommends gnome-shell
-        if: github.ref_type == 'tag'
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: gnome-shell
+          version: 1.0
       - run: npm run package
-        if: github.ref_type == 'tag'
       - uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
+        if: github.event_name == 'push'
         with:
           fail_on_unmatched_files: true
-          files: junk-notification-cleaner@murar8.github.com.shell-extension.zip
+          files: dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip
           generate_release_notes: true
+          prerelease: ${{ github.ref_type != 'tag' }}
+          tag_name: ${{ github.ref_name }}

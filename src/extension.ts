@@ -4,6 +4,7 @@ import type { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import { isMatch } from "./isMatch.js";
 
 function getWindowLabel(window: Meta.Window) {
   const title = window.title ?? "<empty>";
@@ -17,31 +18,6 @@ function getSourceLabel(source: Source) {
   const title = source.title ?? "<empty>";
   const icon = source.icon?.to_string() ?? "<empty>";
   return `Source(Title: '${title}', Icon: '${icon}')`;
-}
-
-function isMatch(window: Meta.Window, source: Source) {
-  if (source.icon) {
-    const icon = source.icon.to_string();
-    if (
-      // For Ghostty deb (and maybe other GTK apps) source icon is the same as the GTK app id
-      // i.e. com.mitchellh.ghostty
-      icon === window.gtkApplicationId ||
-      // For Slack Flatpak (and maybe other flatpaks and snaps) source icon is the same as the app id
-      // i.e. com.slack.Slack
-      icon === window.get_sandboxed_app_id() ||
-      // For Firefox deb source icon is the same as the window manager class
-      // i.e. firefox
-      icon === window.wmClass
-    ) {
-      return true;
-    }
-  }
-  return (
-    source.title &&
-    // For Proton Mail Bridge source title is the same as the window title.
-    // i.e. Proton Mail Bridge
-    source.title === window.title
-  );
 }
 
 export default class JunkNotificationCleaner extends Extension {
