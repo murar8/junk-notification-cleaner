@@ -133,6 +133,45 @@ test.each<{
     },
   },
   {
+    description: "title pattern with multiple dashes in app name",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "code",
+      title: "main.ts - my-project-name - app-name",
+    },
+    source: {
+      title: "app-name",
+      icon: null,
+    },
+  },
+  {
+    description: "title pattern with pipe in app name",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "code",
+      title: "main.ts - my-project-name - app|name",
+    },
+    source: {
+      title: "app|name",
+      icon: null,
+    },
+  },
+  {
+    description: "title pattern with pipe as separator",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "code",
+      title: "main.ts | my-project-name | app|name",
+    },
+    source: {
+      title: "app|name",
+      icon: null,
+    },
+  },
+  {
     description: "exact title when all other identifiers are null",
     window: {
       gtkApplicationId: null,
@@ -143,6 +182,78 @@ test.each<{
     source: {
       title: "Simple App",
       icon: null,
+    },
+  },
+  {
+    description:
+      "wmClass matching with null gtkApplicationId and sandboxed app id",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "telegram-desktop",
+      title: "Telegram",
+    },
+    source: {
+      title: "Different Title",
+      icon: {
+        to_string: () => "telegram-desktop",
+      },
+    },
+  },
+  {
+    description: "title pattern with single dash separator",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "browser",
+      title: "Document - Firefox",
+    },
+    source: {
+      title: "Firefox",
+      icon: null,
+    },
+  },
+  {
+    description: "title pattern with extra whitespace in title",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "editor",
+      title: "file.txt - project - VSCode   App",
+    },
+    source: {
+      title: "VSCode   App",
+      icon: null,
+    },
+  },
+  {
+    description: "gtkApplicationId with empty wmClass",
+    window: {
+      gtkApplicationId: "org.gnome.Calculator",
+      get_sandboxed_app_id: () => null,
+      wmClass: "",
+      title: "Calculator",
+    },
+    source: {
+      title: "Math App",
+      icon: {
+        to_string: () => "org.gnome.Calculator",
+      },
+    },
+  },
+  {
+    description: "sandboxed app id with empty gtkApplicationId",
+    window: {
+      gtkApplicationId: "",
+      get_sandboxed_app_id: () => "com.spotify.Client",
+      wmClass: "spotify",
+      title: "Spotify",
+    },
+    source: {
+      title: "Music Player",
+      icon: {
+        to_string: () => "com.spotify.Client",
+      },
     },
   },
 ])("should match by $description", ({ window, source }) => {
@@ -264,6 +375,99 @@ test.each<{
       icon: {
         to_string: () => "",
       },
+    },
+  },
+  {
+    description: "title pattern with pipe as separator but wrong match",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "code",
+      title: "main.ts | my-project-name | app|name",
+    },
+    source: {
+      title: "name",
+      icon: null,
+    },
+  },
+  {
+    description: "case sensitivity - different case in gtkApplicationId",
+    window: {
+      gtkApplicationId: "com.slack.Slack",
+      get_sandboxed_app_id: () => null,
+      wmClass: "slack",
+      title: "Slack",
+    },
+    source: {
+      title: "Different",
+      icon: {
+        to_string: () => "com.slack.slack",
+      },
+    },
+  },
+  {
+    description: "case sensitivity - different case in title",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: "My Application",
+    },
+    source: {
+      title: "my application",
+      icon: null,
+    },
+  },
+  {
+    description: "title pattern with only one part",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: "SingleTitle",
+    },
+    source: {
+      title: "DifferentApp",
+      icon: null,
+    },
+  },
+  {
+    description: "title pattern with empty extracted part",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: "file.txt - project - ",
+    },
+    source: {
+      title: "SomeApp",
+      icon: null,
+    },
+  },
+  {
+    description: "whitespace-only source title",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: "Application",
+    },
+    source: {
+      title: "   ",
+      icon: null,
+    },
+  },
+  {
+    description: "window title is empty string",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: "",
+    },
+    source: {
+      title: "SomeApp",
+      icon: null,
     },
   },
 ])("should NOT match when $description", ({ window, source }) => {

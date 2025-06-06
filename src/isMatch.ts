@@ -31,7 +31,7 @@ export function isMatch(window: Window, source: Source) {
       // i.e. Proton Mail Bridge
       source.title === window.title ||
       // Example: Window(Title: 'isMatch.ts - junk-notification-cleaner - Cursor')
-      source.title === window.title.match(/^(.+) - ([^-]+)$/)?.[2]
+      source.title === window.title.match(/^.+ (-|\|) (.+)$/)?.[2]
     ) {
       return true;
     }
