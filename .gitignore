@@ -4,3 +4,4 @@ schemas/*.compiled
 *.zip
 *.tsbuildinfo
 coverage/
+dist/
