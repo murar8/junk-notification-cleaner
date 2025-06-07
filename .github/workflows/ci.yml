@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -38,10 +38,16 @@ jobs:
           version: 1.0
       - run: npm run package
       - uses: softprops/action-gh-release@v2
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         with:
           fail_on_unmatched_files: true
           files: dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip
           generate_release_notes: true
-          prerelease: ${{ github.ref_type != 'tag' }}
-          tag_name: ${{ github.ref_name }}
+      - uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' && github.ref_type != 'tag'
+        with:
+          fail_on_unmatched_files: true
+          files: dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip
+          generate_release_notes: true
+          prerelease: true
+          tag_name: ci-build-${{ github.ref_name }}
