@@ -31,7 +31,10 @@ export function isMatch(window: Window, source: Source) {
       // i.e. Proton Mail Bridge
       source.title === window.title ||
       // Example: Window(Title: 'isMatch.ts - junk-notification-cleaner - Cursor')
-      source.title === window.title.match(/^.+ (-|\|) (.+)$/)?.[2]
+      source.title === window.title?.match(/^.+ (-|\|) (.+)$/)?.[2] ||
+      // For Thunderbird source title is the same as the window manager class
+      // Example: Window(Title: 'Calendario - Mozilla Thunderbird', WMClass: 'thunderbird')
+      source.title === window.wmClass
     ) {
       return true;
     }

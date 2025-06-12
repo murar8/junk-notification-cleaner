@@ -256,6 +256,19 @@ test.each<{
       },
     },
   },
+  {
+    description: "source title is the same as the window manager class",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "thunderbird",
+      title: "Calendario - Mozilla Thunderbird",
+    },
+    source: {
+      title: "thunderbird",
+      icon: null,
+    },
+  },
 ])("should match by $description", ({ window, source }) => {
   expect(isMatch(window, source)).toBe(true);
 });
@@ -468,6 +481,21 @@ test.each<{
     source: {
       title: "SomeApp",
       icon: null,
+    },
+  },
+  {
+    description: "window title is null",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "app",
+      title: null,
+    },
+    source: {
+      title: "SomeApp",
+      icon: {
+        to_string: () => "com.example.App",
+      },
     },
   },
 ])("should NOT match when $description", ({ window, source }) => {
