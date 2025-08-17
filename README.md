@@ -21,6 +21,7 @@ gnome-extensions prefs junk-notification-cleaner@murar8.github.com
 - **Delete on focus**: Enable/disable notification deletion when an application window is focused.
 - **Delete on close**: Enable/disable notification deletion when an application window is closed.
 - **Excluded Applications**: Regex patterns for application WM_CLASS values that should be excluded from automatic notification cleanup.
+- **Log Level**: Set the logging level (debug, info, warn, error) for troubleshooting notification matching.
 
 ## Installation
 

@@ -12,29 +12,35 @@ export function isMatch(window: Window, source: Source) {
   if (source.icon) {
     const icon = source.icon.to_string();
     if (
-      // For Ghostty deb (and maybe other GTK apps) source icon is the same as the GTK app id
-      // i.e. com.mitchellh.ghostty
+      // Ghostty deb: icon matches GTK app id (com.mitchellh.ghostty)
       icon === window.gtkApplicationId ||
-      // For Slack Flatpak (and maybe other flatpaks and snaps) source icon is the same as the app id
-      // i.e. com.slack.Slack
+      // Slack Flatpak: icon matches sandboxed app id (com.slack.Slack)
       icon === window.get_sandboxed_app_id() ||
-      // For Firefox deb source icon is the same as the window manager class
-      // i.e. firefox
+      // Firefox deb: icon matches window manager class (firefox)
       icon === window.wmClass
     ) {
       return true;
     }
+
+    // Snap apps have icon paths like /snap/firefox/6638/default256.png
+    const snapAppName = icon?.match(/^\/snap\/([^/]+)\//)?.at(1);
+    // Snap sandboxed ids use format appname_appname (firefox_firefox)
+    if (snapAppName) {
+      if (window.get_sandboxed_app_id() === `${snapAppName}_${snapAppName}`) {
+        return true;
+      }
+    }
   }
   if (source.title) {
     if (
-      // For Proton Mail Bridge source title is the same as the window title.
-      // i.e. Proton Mail Bridge
+      // Proton Mail Bridge: title matches window title
       source.title === window.title ||
-      // Example: Window(Title: 'isMatch.ts - junk-notification-cleaner - Cursor')
+      // Extract app name from composite title (isMatch.ts - junk-notification-cleaner - Cursor)
       source.title === window.title?.match(/^.+ (-|\|) (.+)$/)?.[2] ||
-      // For Thunderbird source title is the same as the window manager class
-      // Example: Window(Title: 'Calendario - Mozilla Thunderbird', WMClass: 'thunderbird')
-      source.title === window.wmClass
+      // Thunderbird: title matches window manager class (thunderbird)
+      source.title === window.wmClass ||
+      // Discord snap: title duplicated matches sandboxed app id (discord_discord)
+      `${source.title}_${source.title}` === window.get_sandboxed_app_id()
     ) {
       return true;
     }
