@@ -16,5 +16,10 @@
       <summary>Excluded applications</summary>
       <description>List of application regex patterns for which notifications should not be automatically deleted.</description>
     </key>
+    <key name="log-level" type="s">
+      <default>'info'</default>
+      <summary>Log level</summary>
+      <description>Set the logging level for troubleshooting notification matching issues.</description>
+    </key>
   </schema>
 </schemalist> 

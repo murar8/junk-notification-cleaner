@@ -20,12 +20,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
-    "@girs/gjs": "^4.0.0-beta.23",
-    "@girs/gnome-shell": "^48.0.2",
-    "@types/node": "^22.15.29",
-    "@vitest/coverage-v8": "^3.1.4",
-    "prettier": "^3.5.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.1.4"
+    "@girs/gjs": "^4.0.0-beta.34",
+    "@girs/gnome-shell": "^48.0.4",
+    "@types/node": "^24.3.0",
+    "@vitest/coverage-v8": "^3.2.4",
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   }
 }

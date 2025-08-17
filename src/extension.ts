@@ -6,18 +6,34 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { isMatch } from "./isMatch.js";
 
+export enum LogLevel {
+  DEBUG = "debug",
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
+}
+
+function getObjectLabel(name: string, values: Record<string, string | null>) {
+  const labels = Object.entries(values)
+    .filter(([_, value]) => value)
+    .map(([label, value]) => `${label}: '${value}'`);
+  return `${name}(${labels.join(", ")})`;
+}
+
 function getWindowLabel(window: Meta.Window) {
-  const title = window.title ?? "<empty>";
-  const wmClass = window.wmClass ?? "<empty>";
-  const gtkAppId = window.gtkApplicationId ?? "<empty>";
-  const sandboxedAppId = window.get_sandboxed_app_id() ?? "<empty>";
-  return `Window(Title: '${title}', WMClass: '${wmClass}', GTKAppId: '${gtkAppId}', SandboxedAppId: '${sandboxedAppId}')`;
+  return getObjectLabel("Window", {
+    ["Title"]: window.title,
+    ["WMClass"]: window.wmClass,
+    ["GTKAppId"]: window.gtkApplicationId,
+    ["SandboxedAppId"]: window.get_sandboxed_app_id(),
+  });
 }
 
 function getSourceLabel(source: Source) {
-  const title = source.title ?? "<empty>";
-  const icon = source.icon?.to_string() ?? "<empty>";
-  return `Source(Title: '${title}', Icon: '${icon}')`;
+  return getObjectLabel("Source", {
+    ["Title"]: source.title,
+    ["Icon"]: source.icon?.to_string(),
+  });
 }
 
 export default class JunkNotificationCleaner extends Extension {
@@ -25,29 +41,46 @@ export default class JunkNotificationCleaner extends Extension {
   private closeListenerId: number | null = null;
   private settings: Gio.Settings | null = null;
 
+  private log(level: LogLevel, message: string) {
+    let minLevel = this.settings!.get_string("log-level") as LogLevel;
+    if (!Object.values(LogLevel).includes(minLevel)) minLevel = LogLevel.INFO;
+    const levels = Object.values(LogLevel);
+    if (levels.indexOf(level) >= levels.indexOf(minLevel)) {
+      log(`[${this.metadata.uuid}][${level}] ${message}`);
+    }
+  }
+
   private clearNotificationsForApp(
     window: Meta.Window,
     event: "focus" | "close",
   ) {
     const windowLabel = getWindowLabel(window);
-    log(`${windowLabel}: ${event} received, clearing notifications`);
+    this.log(LogLevel.DEBUG, `${windowLabel}: received ${event}`);
 
     const excludedApps = this.settings!.get_strv("excluded-apps");
     for (const wmClassPattern of excludedApps) {
       if (new RegExp(wmClassPattern).test(window.wmClass)) {
-        log(`${windowLabel}: excluded by ${wmClassPattern}`);
+        this.log(
+          LogLevel.DEBUG,
+          `${windowLabel}: excluded by '${wmClassPattern}'`,
+        );
         return;
       }
     }
 
     for (const source of Main.messageTray.getSources()) {
-      if (isMatch(window, source)) {
-        const sourceLabel = getSourceLabel(source);
-        for (const notification of [...source.notifications]) {
-          if (!notification.isTransient) {
-            log(`${windowLabel}: clearing notification for ${sourceLabel}`);
-            notification.destroy();
-          }
+      const sourceLabel = getSourceLabel(source);
+      for (const notification of [...source.notifications]) {
+        this.log(
+          LogLevel.DEBUG,
+          `${windowLabel}: ${sourceLabel}: found ${notification.isTransient ? "transient" : "persistent"} notification${notification.title ? `: ${notification.title}` : ""}`,
+        );
+        if (isMatch(window, source) && !notification.isTransient) {
+          notification.destroy();
+          this.log(
+            LogLevel.INFO,
+            `${windowLabel}: ${sourceLabel}: removed notification${notification.title ? `: ${notification.title}` : ""}`,
+          );
         }
       }
     }

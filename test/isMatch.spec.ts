@@ -257,6 +257,22 @@ test.each<{
     },
   },
   {
+    description: "Firefox sandboxed app with file path icon",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => "firefox_firefox",
+      wmClass: "firefox_firefox",
+      title:
+        "HTML5 Web Notifications Test - Bennish.net — Perfil original — Mozilla Firefox",
+    },
+    source: {
+      title: "Firefox",
+      icon: {
+        to_string: () => "/snap/firefox/6638/default256.png",
+      },
+    },
+  },
+  {
     description: "source title is the same as the window manager class",
     window: {
       gtkApplicationId: null,
@@ -267,6 +283,105 @@ test.each<{
     source: {
       title: "thunderbird",
       icon: null,
+    },
+  },
+  {
+    description: "Discord snap - source title matches wmClass lowercase",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => "discord_discord",
+      wmClass: "discord_discord",
+      title: "Amici - Discord",
+    },
+    source: {
+      title: "discord",
+      icon: null,
+    },
+  },
+  {
+    description: "Discord with channel title pattern",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => "discord_discord",
+      wmClass: "discord_discord",
+      title: "#💬︱general | Character.AI - Discord",
+    },
+    source: {
+      title: "Discord",
+      icon: null,
+    },
+  },
+  {
+    description: "Telegram snap with file path icon",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => "telegram-desktop_telegram-desktop",
+      wmClass: "telegram-desktop_telegram-desktop",
+      title: "Telegram",
+    },
+    source: {
+      title: "Telegram",
+      icon: {
+        to_string: () => "/snap/telegram-desktop/6767/meta/gui/icon.png",
+      },
+    },
+  },
+  {
+    description: "Empty window title with gtkApplicationId match",
+    window: {
+      gtkApplicationId: "com.mitchellh.ghostty",
+      get_sandboxed_app_id: () => null,
+      wmClass: "com.mitchellh.ghostty",
+      title: "",
+    },
+    source: {
+      title: "Ghostty",
+      icon: {
+        to_string: () => "com.mitchellh.ghostty",
+      },
+    },
+  },
+  {
+    description: "Google Chrome title pattern extraction",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "google-chrome",
+      title: "e2e - Google Chrome",
+    },
+    source: {
+      title: "Google Chrome",
+      icon: null,
+    },
+  },
+  {
+    description: "Complex WMClass with dashes (xdg-desktop-portal-gnome)",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => null,
+      wmClass: "xdg-desktop-portal-gnome",
+      title: "Compartición de pantalla",
+    },
+    source: {
+      title: "Screen Share",
+      icon: {
+        to_string: () => "xdg-desktop-portal-gnome",
+      },
+    },
+  },
+  {
+    description: "Slack with channel title pattern",
+    window: {
+      gtkApplicationId: null,
+      get_sandboxed_app_id: () => "com.slack.Slack",
+      wmClass: "com.slack.Slack",
+      title: "product-team-status (Canal) - Koda Health - Slack",
+    },
+    source: {
+      title: "Slack",
+      icon: {
+        to_string: () => "com.slack.Slack",
+      },
     },
   },
 ])("should match by $description", ({ window, source }) => {

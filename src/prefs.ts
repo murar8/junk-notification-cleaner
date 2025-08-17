@@ -2,6 +2,9 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import type { LogLevel } from "./extension.js";
+
+const LOG_LEVELS: LogLevel[] = ["debug", "info", "warn", "error"] as LogLevel[];
 
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
   async fillPreferencesWindow(window: Adw.PreferencesWindow) {
@@ -49,6 +52,34 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     );
     closeRow.add_suffix(closeSwitch);
     generalGroup.add(closeRow);
+
+    const debugGroup = new Adw.PreferencesGroup();
+    debugGroup.set_title("Logging");
+    page.add(debugGroup);
+
+    const logLevelRow = new Adw.ActionRow({
+      title: "Log Level",
+      subtitle:
+        "Set the logging level for troubleshooting notification matching.",
+    });
+    const logLevelDropdown = new Gtk.DropDown({
+      model: Gtk.StringList.new(LOG_LEVELS),
+      valign: Gtk.Align.CENTER,
+    });
+
+    let currentLogLevel = settings.get_string("log-level") || "info";
+    const currentIndex = LOG_LEVELS.indexOf(currentLogLevel as LogLevel);
+    if (currentIndex !== -1) {
+      logLevelDropdown.set_selected(currentIndex);
+    }
+
+    logLevelDropdown.connect("notify::selected", () => {
+      const selectedIndex = logLevelDropdown.get_selected();
+      settings.set_string("log-level", LOG_LEVELS[selectedIndex]);
+    });
+
+    logLevelRow.add_suffix(logLevelDropdown);
+    debugGroup.add(logLevelRow);
 
     const excludedGroup = new Adw.PreferencesGroup();
     excludedGroup.set_title("Excluded WM Classes");

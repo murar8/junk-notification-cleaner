@@ -13,9 +13,18 @@ Object.assign(global, {
   log: vi.fn(),
 });
 
-const settings = { get_boolean: vi.fn(), get_strv: vi.fn() };
+const settings = {
+  get_boolean: vi.fn(),
+  get_strv: vi.fn(),
+  get_string: vi.fn(),
+};
+
 vi.mock("resource:///org/gnome/shell/extensions/extension.js", () => ({
   Extension: class MockExtension {
+    metadata: any;
+    constructor(metadata: any) {
+      this.metadata = metadata;
+    }
     getSettings = vi.fn(() => settings);
   },
 }));
@@ -36,6 +45,7 @@ import { messageTray } from "resource:///org/gnome/shell/ui/main.js";
 let extension: JunkNotificationCleaner;
 
 beforeEach(() => {
+  settings.get_string.mockReturnValue("debug");
   extension = new JunkNotificationCleaner({
     uuid: "uuid",
     path: "path",
@@ -125,14 +135,18 @@ it.each([
     expect(settings.get_strv).toHaveBeenCalledWith("excluded-apps");
     expect(notification.destroy).toHaveBeenCalledTimes(1);
     expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledTimes(3);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): focus received, clearing notifications`,
+      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}'): received focus`,
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: '<empty>')`,
+      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}'): Source(Title: 'Test'): found persistent notification`,
+    );
+    expect(log).toHaveBeenNthCalledWith(
+      3,
+      `[uuid][info] Window(Title: 'Test', WMClass: '${wmClass}'): Source(Title: 'Test'): removed notification`,
     );
   },
 );
@@ -167,14 +181,18 @@ it("should clear notifications for app on close", () => {
   expect(settings.get_strv).toHaveBeenCalledWith("excluded-apps");
   expect(notification.destroy).toHaveBeenCalledTimes(1);
   expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledTimes(2);
+  expect(log).toHaveBeenCalledTimes(3);
   expect(log).toHaveBeenNthCalledWith(
     1,
-    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): close received, clearing notifications",
+    "[uuid][debug] Window(Title: 'Test'): received close",
   );
   expect(log).toHaveBeenNthCalledWith(
     2,
-    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: '<empty>')",
+    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Test'): found persistent notification",
+  );
+  expect(log).toHaveBeenNthCalledWith(
+    3,
+    "[uuid][info] Window(Title: 'Test'): Source(Title: 'Test'): removed notification",
   );
 });
 
@@ -219,14 +237,22 @@ it("should not clear notifications for other apps", () => {
   expect(appNotification.destroy).toHaveBeenCalledTimes(1);
   expect(otherNotification.destroy).not.toHaveBeenCalled();
   expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledTimes(2);
+  expect(log).toHaveBeenCalledTimes(4);
   expect(log).toHaveBeenNthCalledWith(
     1,
-    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): focus received, clearing notifications",
+    "[uuid][debug] Window(Title: 'Test'): received focus",
   );
   expect(log).toHaveBeenNthCalledWith(
     2,
-    "Window(Title: 'Test', WMClass: '<empty>', GTKAppId: '<empty>', SandboxedAppId: '<empty>'): clearing notification for Source(Title: 'Test', Icon: 'test-icon')",
+    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Test', Icon: 'test-icon'): found persistent notification",
+  );
+  expect(log).toHaveBeenNthCalledWith(
+    3,
+    "[uuid][info] Window(Title: 'Test'): Source(Title: 'Test', Icon: 'test-icon'): removed notification",
+  );
+  expect(log).toHaveBeenNthCalledWith(
+    4,
+    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Other'): found persistent notification: Other",
   );
 });
 
@@ -276,13 +302,13 @@ it.each([
     expect(log).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): focus received, clearing notifications`,
+      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): received focus`,
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by ${excludedApps.find(
+      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps.find(
         (a) => new RegExp(a).exec(focusWindow.wmClass),
-      )}`,
+      )}'`,
     );
   },
 );
