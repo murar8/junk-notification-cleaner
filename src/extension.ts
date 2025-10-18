@@ -1,10 +1,13 @@
 import type Gio from "gi://Gio";
 import type Meta from "gi://Meta";
 import type { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
+import type Shell from "gi://Shell";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { isMatch } from "./isMatch.js";
+
+declare const global: Shell.Global;
 
 export enum LogLevel {
   DEBUG = "debug",
@@ -43,8 +46,8 @@ export default class JunkNotificationCleaner extends Extension {
 
   private log(level: LogLevel, message: string) {
     let minLevel = this.settings!.get_string("log-level") as LogLevel;
-    if (!Object.values(LogLevel).includes(minLevel)) minLevel = LogLevel.INFO;
     const levels = Object.values(LogLevel);
+    if (!levels.includes(minLevel)) minLevel = LogLevel.INFO;
     if (levels.indexOf(level) >= levels.indexOf(minLevel)) {
       log(`[${this.metadata.uuid}][${level}] ${message}`);
     }
