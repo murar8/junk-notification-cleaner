@@ -16,11 +16,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
-      packages: write
       pull-requests: read
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Check out repository
         uses: actions/checkout@v5
       - name: Set up Node.js
@@ -44,49 +41,29 @@ jobs:
         run: npm run build
       - name: Copy metadata to dist
         run: cp metadata.json dist/
-      - name: Build GNOME Docker image
-        uses: docker/build-push-action@v6
+      - name: Package and upload extension
+        id: package
+        uses: murar8/gnome-extensions-action@0.1.0
         with:
-          tags: junk-notification-cleaner-uploader
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          load: true
-      - name: Pack extension
-        run: >
-          docker run --rm -v $(pwd):/app --workdir /app/dist junk-notification-cleaner-uploader
-          gnome-extensions pack
-          --force
-          --extra-source=prefs.js
-          --extra-source=isMatch.js
-          --schema=../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
-      - name: Create password file
-        run: |
-          mkdir -p /tmp/password
-          echo ${{ secrets.GNOME_EXTENSIONS_PASSWORD }} > /tmp/password/password.txt
-      - name: Upload extension to GNOME Extensions
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        run: >
-          docker run --rm --tty -v $(pwd):/app -v /tmp/password:/password --workdir /app/dist junk-notification-cleaner-uploader
-          gnome-extensions upload junk-notification-cleaner@murar8.github.com.shell-extension.zip
-          --accept-tos
-          --user ${{ secrets.GNOME_EXTENSIONS_USER }}
-          --password-file /password/password.txt
-      - name: Delete password file
-        if: always()
-        run: rm -rf /tmp/password
+          source-dir: dist
+          extra-source: prefs.js isMatch.js
+          schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
+          username: ${{ github.event_name == 'push' && github.ref_type == 'tag' && secrets.GNOME_EXTENSIONS_USER || '' }}
+          password: ${{ github.event_name == 'push' && github.ref_type == 'tag' && secrets.GNOME_EXTENSIONS_PASSWORD || '' }}
+          accept-tos: true
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' && github.ref_type == 'tag'
         with:
           fail_on_unmatched_files: true
-          files: dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip
+          files: ${{ steps.package.outputs.zip-file }}
           generate_release_notes: true
       - name: Create pre-release for CI build
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' && github.ref_type != 'tag'
         with:
           fail_on_unmatched_files: true
-          files: dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip
+          files: ${{ steps.package.outputs.zip-file }}
           generate_release_notes: true
           prerelease: true
           tag_name: ci-build-${{ github.ref_name }}
