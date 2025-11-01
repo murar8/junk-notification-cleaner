@@ -48,7 +48,9 @@ jobs:
         if: github.ref_type != 'tag'
         with:
           source-dir: dist
-          extra-source: prefs.js isMatch.js
+          extra-source: |
+            prefs.js
+            isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
       - name: Create pre-release for CI build
         uses: softprops/action-gh-release@v2
@@ -66,7 +68,9 @@ jobs:
         uses: murar8/gnome-extensions-action@0.1.0
         with:
           source-dir: dist
-          extra-source: prefs.js isMatch.js
+          extra-source: |
+            prefs.js
+            isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
           username: ${{ secrets.GNOME_EXTENSIONS_USER }}
           password: ${{ secrets.GNOME_EXTENSIONS_PASSWORD }}
