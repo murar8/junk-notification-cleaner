@@ -80,5 +80,5 @@ jobs:
         if: github.event_name == 'push' && github.ref_type == 'tag'
         with:
           fail_on_unmatched_files: true
-          files: ${{ steps.package.outputs.zip-file }}
+          files: ${{ steps.upload.outputs.zip-file }}
           generate_release_notes: true
