@@ -41,23 +41,15 @@ jobs:
         run: npm run build
       - name: Copy metadata to dist
         run: cp metadata.json dist/
-      - name: Package and upload extension
+
+      - name: Package extension
         id: package
         uses: murar8/gnome-extensions-action@0.1.0
+        if: github.ref_type != 'tag'
         with:
           source-dir: dist
           extra-source: prefs.js isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
-          username: ${{ github.event_name == 'push' && github.ref_type == 'tag' && secrets.GNOME_EXTENSIONS_USER || '' }}
-          password: ${{ github.event_name == 'push' && github.ref_type == 'tag' && secrets.GNOME_EXTENSIONS_PASSWORD || '' }}
-          accept-tos: true
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        if: github.event_name == 'push' && github.ref_type == 'tag'
-        with:
-          fail_on_unmatched_files: true
-          files: ${{ steps.package.outputs.zip-file }}
-          generate_release_notes: true
       - name: Create pre-release for CI build
         uses: softprops/action-gh-release@v2
         if: github.event_name == 'push' && github.ref_type != 'tag'
@@ -67,3 +59,22 @@ jobs:
           generate_release_notes: true
           prerelease: true
           tag_name: ci-build-${{ github.ref_name }}
+
+      - name: Package and upload extension
+        id: upload
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        uses: murar8/gnome-extensions-action@0.1.0
+        with:
+          source-dir: dist
+          extra-source: prefs.js isMatch.js
+          schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
+          username: ${{ secrets.GNOME_EXTENSIONS_USER }}
+          password: ${{ secrets.GNOME_EXTENSIONS_PASSWORD }}
+          accept-tos: true
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        with:
+          fail_on_unmatched_files: true
+          files: ${{ steps.package.outputs.zip-file }}
+          generate_release_notes: true
