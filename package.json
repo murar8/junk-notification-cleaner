@@ -22,7 +22,7 @@
   "devDependencies": {
     "@girs/gjs": "^4.0.0-beta.38",
     "@girs/gnome-shell": "^49.0.3",
-    "@types/node": "^24.9.2",
+    "@types/node": "^25.2.0",
     "@vitest/coverage-v8": "^4.0.6",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
