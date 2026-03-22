@@ -23,6 +23,14 @@ function getObjectLabel(name: string, values: Record<string, string | null>) {
   return `${name}(${labels.join(", ")})`;
 }
 
+function safeRegexTest(pattern: string, value: string): boolean | null {
+  try {
+    return new RegExp(pattern).test(value);
+  } catch {
+    return null;
+  }
+}
+
 function getWindowLabel(window: Meta.Window) {
   return getObjectLabel("Window", {
     ["Title"]: window.title,
@@ -62,7 +70,13 @@ export default class JunkNotificationCleaner extends Extension {
 
     const excludedApps = this.settings!.get_strv("excluded-apps");
     for (const wmClassPattern of excludedApps) {
-      if (new RegExp(wmClassPattern).test(window.wmClass)) {
+      const result = safeRegexTest(wmClassPattern, window.wmClass);
+      if (result === null) {
+        this.log(
+          LogLevel.WARN,
+          `${windowLabel}: invalid regex '${wmClassPattern}'`,
+        );
+      } else if (result) {
         this.log(
           LogLevel.DEBUG,
           `${windowLabel}: excluded by '${wmClassPattern}'`,
@@ -112,9 +126,11 @@ export default class JunkNotificationCleaner extends Extension {
   disable() {
     if (this.focusListenerId !== null) {
       global.display.disconnect(this.focusListenerId);
+      this.focusListenerId = null;
     }
     if (this.closeListenerId !== null) {
       global.window_manager.disconnect(this.closeListenerId);
+      this.closeListenerId = null;
     }
     if (this.settings) {
       this.settings = null;

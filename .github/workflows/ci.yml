@@ -44,7 +44,7 @@ jobs:
 
       - name: Package extension
         id: package
-        uses: murar8/gnome-extensions-action@0.1.0
+        uses: murar8/gnome-extensions-action@0.1.1
         if: github.ref_type != 'tag'
         with:
           source-dir: dist
@@ -65,7 +65,7 @@ jobs:
       - name: Package and upload extension
         id: upload
         if: github.event_name == 'push' && github.ref_type == 'tag'
-        uses: murar8/gnome-extensions-action@0.1.0
+        uses: murar8/gnome-extensions-action@0.1.1
         with:
           source-dir: dist
           extra-source: |

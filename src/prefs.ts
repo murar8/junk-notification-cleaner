@@ -6,6 +6,15 @@ import type { LogLevel } from "./extension.js";
 
 const LOG_LEVELS: LogLevel[] = ["debug", "info", "warn", "error"] as LogLevel[];
 
+function isValidRegex(pattern: string): boolean {
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
   async fillPreferencesWindow(window: Adw.PreferencesWindow) {
     const settings = this.getSettings();
@@ -123,25 +132,45 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       hexpand: true,
     });
 
+    const errorLabel = new Gtk.Label({
+      label: "Invalid regular expression",
+      css_classes: ["error"],
+      xalign: 0,
+      visible: false,
+    });
+
     const addButton = new Gtk.Button({
       label: "Add",
       css_classes: ["suggested-action"],
     });
 
+    entry.connect("changed", () => {
+      entry.remove_css_class("error");
+      errorLabel.set_visible(false);
+    });
+
     addButton.connect("clicked", () => {
       const text = entry.get_text().trim();
       if (!text) return;
-      const currentApps = settings.get_strv("excluded-apps");
-      if (currentApps.includes(text)) return;
-      settings.set_strv("excluded-apps", [...currentApps, text]);
-      this.addExcludedAppRow(text, listBox, settings);
-      entry.set_text("");
+      if (!isValidRegex(text)) {
+        entry.add_css_class("error");
+        errorLabel.set_visible(true);
+      } else {
+        entry.remove_css_class("error");
+        errorLabel.set_visible(false);
+        const currentApps = settings.get_strv("excluded-apps");
+        if (currentApps.includes(text)) return;
+        settings.set_strv("excluded-apps", [...currentApps, text]);
+        this.addExcludedAppRow(text, listBox, settings);
+        entry.set_text("");
+      }
     });
 
     addBox.append(entry);
     addBox.append(addButton);
 
     excludedBox.append(addBox);
+    excludedBox.append(errorLabel);
     excludedGroup.add(excludedBox);
   }
 
