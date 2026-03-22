@@ -57,7 +57,6 @@ beforeEach(() => {
 
 describe(JunkNotificationCleaner.prototype.enable.name, () => {
   it("should connect to display and window_manager", () => {
-    vi.mocked(Extension.prototype.getSettings);
     extension.enable();
     expect(global.display.connect).toHaveBeenCalledTimes(1);
     expect(global.display.connect).toHaveBeenCalledWith(
@@ -312,6 +311,38 @@ it.each([
     );
   },
 );
+
+it("should log warning and continue for invalid excluded app regex", () => {
+  extension.enable();
+  settings.get_boolean.mockReturnValueOnce(true);
+  settings.get_strv.mockReturnValueOnce(["[invalid", "com\\.app\\.test"]);
+  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
+
+  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
+  const focusWindow = {
+    title: "Test",
+    wmClass: "com.app.test",
+    get_sandboxed_app_id: () => null,
+    gtkApplicationId: null,
+  } as Meta.Window;
+  const display = { focusWindow } as Meta.Display;
+  onFocusWindow(display);
+
+  expect(messageTray.getSources).not.toHaveBeenCalled();
+  expect(log).toHaveBeenCalledTimes(3);
+  expect(log).toHaveBeenNthCalledWith(
+    1,
+    "[uuid][debug] Window(Title: 'Test', WMClass: 'com.app.test'): received focus",
+  );
+  expect(log).toHaveBeenNthCalledWith(
+    2,
+    "[uuid][warn] Window(Title: 'Test', WMClass: 'com.app.test'): invalid regex '[invalid'",
+  );
+  expect(log).toHaveBeenNthCalledWith(
+    3,
+    "[uuid][debug] Window(Title: 'Test', WMClass: 'com.app.test'): excluded by 'com\\.app\\.test'",
+  );
+});
 
 it("should not clear notifications for app on focus if not enabled", () => {
   extension.enable();
