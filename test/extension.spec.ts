@@ -305,7 +305,9 @@ it.each([
     expect(log).toHaveBeenNthCalledWith(
       2,
       `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps.find(
-        (a) => focusWindow.wmClass != null && new RegExp(a).test(focusWindow.wmClass),
+        (a) =>
+          focusWindow.wmClass != null &&
+          new RegExp(a).test(focusWindow.wmClass),
       )}'`,
     );
   },

@@ -17,12 +17,19 @@
     "preinstall-extension": "npm run package && npm run compile-schemas",
     "install-extension": "gnome-extensions install --force dist/junk-notification-cleaner@murar8.github.com.shell-extension.zip",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*": "prettier --ignore-unknown --write",
+    "*.ts": "vitest related --run"
   },
   "devDependencies": {
     "@girs/gjs": "^4.0.0-rc.9",
     "@girs/gnome-shell": "^50.0.0",
     "@vitest/coverage-v8": "^4.1.5",
+    "husky": "9.1.7",
+    "lint-staged": "16.4.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
