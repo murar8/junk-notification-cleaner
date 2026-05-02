@@ -55,7 +55,7 @@ jobs:
             isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
       - name: Create pre-release for CI build
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.event_name == 'push' && github.ref_type != 'tag'
         with:
           fail_on_unmatched_files: true
@@ -78,7 +78,7 @@ jobs:
           password: ${{ secrets.GNOME_EXTENSIONS_PASSWORD }}
           accept-tos: true
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         if: github.event_name == 'push' && github.ref_type == 'tag'
         with:
           fail_on_unmatched_files: true
