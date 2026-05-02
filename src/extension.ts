@@ -23,7 +23,8 @@ function getObjectLabel(name: string, values: Record<string, string | null>) {
   return `${name}(${labels.join(", ")})`;
 }
 
-function safeRegexTest(pattern: string, value: string): boolean | null {
+function safeRegexTest(pattern: string, value: string | null): boolean | null {
+  if (value === null) return false;
   try {
     return new RegExp(pattern).test(value);
   } catch {

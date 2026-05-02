@@ -1,4 +1,4 @@
-import type Meta from "@girs/meta-17";
+import type Meta from "@girs/meta-18";
 import type { Source as NotificationSource } from "resource:///org/gnome/shell/ui/messageTray.js";
 
 type Window = Pick<

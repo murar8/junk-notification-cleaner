@@ -1,6 +1,6 @@
 {
   "files": [
-    "ambient.d.ts",
+    "src/ambient.d.ts",
     "src/extension.ts",
     "src/prefs.ts",
     "src/isMatch.ts"
@@ -8,6 +8,7 @@
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "rootDir": "./src",
     "outDir": "dist",
     "sourceMap": false,
     "strict": true,
@@ -19,7 +20,6 @@
     "pretty": true,
     "skipLibCheck": true,
     "target": "ES2022",
-    "lib": ["ES2022"],
-    "baseUrl": "src"
+    "lib": ["ES2022"]
   }
 }

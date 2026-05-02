@@ -344,6 +344,29 @@ it("should log warning and continue for invalid excluded app regex", () => {
   );
 });
 
+it("should treat null wmClass as no match against excluded apps", () => {
+  extension.enable();
+  settings.get_boolean.mockReturnValueOnce(true);
+  settings.get_strv.mockReturnValueOnce(["com\\.app\\.test"]);
+  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
+
+  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
+  const focusWindow = {
+    title: "Test",
+    wmClass: null,
+    get_sandboxed_app_id: () => null,
+    gtkApplicationId: null,
+  } as unknown as Meta.Window;
+  onFocusWindow({ focusWindow } as Meta.Display);
+
+  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
+  expect(log).toHaveBeenCalledTimes(1);
+  expect(log).toHaveBeenNthCalledWith(
+    1,
+    "[uuid][debug] Window(Title: 'Test'): received focus",
+  );
+});
+
 it("should not clear notifications for app on focus if not enabled", () => {
   extension.enable();
   settings.get_boolean.mockReturnValueOnce(false);
