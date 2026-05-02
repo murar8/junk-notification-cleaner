@@ -1,4 +1,4 @@
-import type { ExtensionMetadata } from "@girs/gnome-shell/extensions/extension";
+import type { Extension } from "@girs/gnome-shell/extensions/extension";
 import type Meta from "gi://Meta";
 import type {
   Notification,
@@ -39,7 +39,6 @@ vi.mock("resource:///org/gnome/shell/ui/main.js", () => ({
   },
 }));
 
-import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import { messageTray } from "resource:///org/gnome/shell/ui/main.js";
 
 let extension: JunkNotificationCleaner;
@@ -52,7 +51,7 @@ beforeEach(() => {
     name: "name",
     description: "description",
     "shell-version": ["44", "45", "46"],
-  } as ExtensionMetadata);
+  } as Extension["metadata"]);
 });
 
 describe(JunkNotificationCleaner.prototype.enable.name, () => {
@@ -306,7 +305,7 @@ it.each([
     expect(log).toHaveBeenNthCalledWith(
       2,
       `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps.find(
-        (a) => new RegExp(a).exec(focusWindow.wmClass),
+        (a) => focusWindow.wmClass != null && new RegExp(a).test(focusWindow.wmClass),
       )}'`,
     );
   },

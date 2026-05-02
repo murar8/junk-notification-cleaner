@@ -2,6 +2,8 @@
   "extends": "../tsconfig.json",
   "include": ["*.spec.ts"],
   "compilerOptions": {
-    "types": ["node", "vitest/globals"]
+    "types": ["vitest/globals"],
+    "noEmit": true,
+    "rootDir": ".."
   }
 }

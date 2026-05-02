@@ -22,7 +22,6 @@
   "devDependencies": {
     "@girs/gjs": "^4.0.0-rc.9",
     "@girs/gnome-shell": "^50.0.0",
-    "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.5",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",

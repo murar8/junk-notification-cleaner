@@ -1,23 +1,12 @@
 {
-  "files": [
-    "src/ambient.d.ts",
-    "src/extension.ts",
-    "src/prefs.ts",
-    "src/isMatch.ts"
-  ],
+  "files": ["ambient.d.ts"],
+  "include": ["src/**/*.ts"],
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "rootDir": "./src",
     "outDir": "dist",
-    "sourceMap": false,
     "strict": true,
-    "strictBindCallApply": true,
-    "strictFunctionTypes": true,
-    "strictNullChecks": true,
-    "strictPropertyInitialization": true,
-    "removeComments": false,
-    "pretty": true,
     "skipLibCheck": true,
     "target": "ES2022",
     "lib": ["ES2022"]
