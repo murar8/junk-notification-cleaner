@@ -2,8 +2,8 @@ import { isMatch } from "../src/isMatch.js";
 
 test.each<{
   description: string;
-  window: (typeof isMatch)["arguments"][0];
-  source: (typeof isMatch)["arguments"][1];
+  window: Parameters<typeof isMatch>[0];
+  source: Parameters<typeof isMatch>[1];
 }>([
   {
     description: "gtkApplicationId and icon",
@@ -390,8 +390,8 @@ test.each<{
 
 test.each<{
   description: string;
-  window: (typeof isMatch)["arguments"][0];
-  source: (typeof isMatch)["arguments"][1];
+  window: Parameters<typeof isMatch>[0];
+  source: Parameters<typeof isMatch>[1];
 }>([
   {
     description: "different applications with no matching criteria",

@@ -8,9 +8,12 @@
   "license": "MIT",
   "sideEffects": false,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "compile-schemas": "glib-compile-schemas schemas",
     "prepackage": "npm run build",
     "package": "cd dist && cp ../metadata.json . && gnome-extensions pack --force --extra-source=prefs.js --extra-source=isMatch.js --schema=../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml",
@@ -22,16 +25,26 @@
   },
   "lint-staged": {
     "*": "prettier --ignore-unknown --write",
-    "*.ts": "vitest related --run"
+    "*.ts": [
+      "eslint --fix",
+      "vitest related --run"
+    ]
   },
   "devDependencies": {
+    "@eslint/compat": "^2.0.5",
+    "@eslint/js": "^10.0.1",
     "@girs/gjs": "^4.0.0-rc.9",
     "@girs/gnome-shell": "^50.0.0",
     "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/eslint-plugin": "^1.6.16",
+    "eslint": "^10.3.0",
+    "eslint-config-prettier": "^10.1.8",
     "husky": "9.1.7",
+    "jiti": "^2.6.1",
     "lint-staged": "16.4.0",
     "prettier": "^3.8.3",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
     "vitest": "^4.1.5"
   }
 }

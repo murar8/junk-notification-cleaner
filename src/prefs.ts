@@ -16,13 +16,12 @@ function isValidRegex(pattern: string): boolean {
 }
 
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
-  async fillPreferencesWindow(window: Adw.PreferencesWindow) {
+  getPreferencesWidget() {
     const settings = this.getSettings();
 
     const page = new Adw.PreferencesPage();
     page.set_title("Settings");
     page.set_icon_name("preferences-system-symbolic");
-    window.add(page);
 
     const generalGroup = new Adw.PreferencesGroup();
     generalGroup.set_title("General Settings");
@@ -76,7 +75,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       valign: Gtk.Align.CENTER,
     });
 
-    let currentLogLevel = settings.get_string("log-level") || "info";
+    const currentLogLevel = settings.get_string("log-level") || "info";
     const currentIndex = LOG_LEVELS.indexOf(currentLogLevel as LogLevel);
     if (currentIndex !== -1) {
       logLevelDropdown.set_selected(currentIndex);
@@ -172,6 +171,8 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     excludedBox.append(addBox);
     excludedBox.append(errorLabel);
     excludedGroup.add(excludedBox);
+
+    return page;
   }
 
   addExcludedAppRow(

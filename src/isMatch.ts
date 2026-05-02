@@ -1,12 +1,16 @@
-import type Meta from "@girs/meta-18";
-import type { Source as NotificationSource } from "resource:///org/gnome/shell/ui/messageTray.js";
+// Minimal structural types — girs types claim title/icon/etc. are non-nullable
+// but at runtime they can be null (see GObject ParamSpec defaults upstream).
+interface Window {
+  gtkApplicationId: string | null;
+  get_sandboxed_app_id: () => string | null;
+  wmClass: string | null;
+  title: string | null;
+}
 
-type Window = Pick<
-  Meta.Window,
-  "gtkApplicationId" | "get_sandboxed_app_id" | "wmClass" | "title"
->;
-
-type Source = Pick<NotificationSource, "icon" | "title">;
+interface Source {
+  title: string;
+  icon: { to_string: () => string | null } | null;
+}
 
 export function isMatch(window: Window, source: Source) {
   if (source.icon) {
@@ -31,6 +35,7 @@ export function isMatch(window: Window, source: Source) {
       }
     }
   }
+
   if (source.title) {
     if (
       // Proton Mail Bridge: title matches window title
@@ -45,5 +50,6 @@ export function isMatch(window: Window, source: Source) {
       return true;
     }
   }
+
   return false;
 }

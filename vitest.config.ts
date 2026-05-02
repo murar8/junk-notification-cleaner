@@ -9,7 +9,7 @@ export default defineConfig({
     typecheck: {
       enabled: true,
       include: ["test/**/*.spec.ts"],
-      tsconfig: "./test/tsconfig.json",
+      tsconfig: "./tsconfig.json",
     },
     coverage: {
       include: ["src/extension.ts", "src/isMatch.ts"],

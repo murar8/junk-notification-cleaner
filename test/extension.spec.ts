@@ -1,11 +1,14 @@
 import type { Extension } from "@girs/gnome-shell/extensions/extension";
 import type Meta from "gi://Meta";
+import type Shell from "gi://Shell";
 import type {
   Notification,
   Source,
 } from "resource:///org/gnome/shell/ui/messageTray.js";
 
 import JunkNotificationCleaner from "../src/extension.js";
+
+declare const global: Shell.Global;
 
 Object.assign(global, {
   display: { connect: vi.fn(), disconnect: vi.fn() },
@@ -21,8 +24,8 @@ const settings = {
 
 vi.mock("resource:///org/gnome/shell/extensions/extension.js", () => ({
   Extension: class MockExtension {
-    metadata: any;
-    constructor(metadata: any) {
+    metadata: Extension["metadata"];
+    constructor(metadata: Extension["metadata"]) {
       this.metadata = metadata;
     }
     getSettings = vi.fn(() => settings);
@@ -51,7 +54,7 @@ beforeEach(() => {
     name: "name",
     description: "description",
     "shell-version": ["44", "45", "46"],
-  } as Extension["metadata"]);
+  });
 });
 
 describe(JunkNotificationCleaner.prototype.enable.name, () => {
@@ -120,7 +123,7 @@ it.each([
     const focusWindow = {
       title: "Test",
       wmClass,
-      get_sandboxed_app_id: () => {},
+      get_sandboxed_app_id: () => null,
     } as Meta.Window;
     const display = {
       focusWindow,
@@ -166,12 +169,12 @@ it("should clear notifications for app on close", () => {
     .calls[0][1];
   const metaWindow = {
     title: "Test",
-    get_sandboxed_app_id: () => {},
+    get_sandboxed_app_id: () => null,
   } as Meta.Window;
   const windowActor = {
     metaWindow,
   } as Partial<Meta.WindowActor> as Meta.WindowActor;
-  onCloseWindow({} as any, windowActor);
+  onCloseWindow({}, windowActor);
 
   expect(settings.get_boolean).toHaveBeenCalledTimes(1);
   expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-close");
@@ -225,7 +228,7 @@ it("should not clear notifications for other apps", () => {
   const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
   const focusWindow = {
     title: "Test",
-    get_sandboxed_app_id: () => {},
+    get_sandboxed_app_id: () => null,
   } as Meta.Window;
   const display = {
     focusWindow,
@@ -304,11 +307,7 @@ it.each([
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps.find(
-        (a) =>
-          focusWindow.wmClass != null &&
-          new RegExp(a).test(focusWindow.wmClass),
-      )}'`,
+      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps[0]}'`,
     );
   },
 );
@@ -358,7 +357,7 @@ it("should treat null wmClass as no match against excluded apps", () => {
     get_sandboxed_app_id: () => null,
     gtkApplicationId: null,
   } as unknown as Meta.Window;
-  onFocusWindow({ focusWindow } as Meta.Display);
+  onFocusWindow({ focusWindow });
 
   expect(messageTray.getSources).toHaveBeenCalledTimes(1);
   expect(log).toHaveBeenCalledTimes(1);
@@ -375,7 +374,7 @@ it("should not clear notifications for app on focus if not enabled", () => {
   vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
 
   const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-  onFocusWindow({} as Meta.Display);
+  onFocusWindow({});
 
   expect(settings.get_boolean).toHaveBeenCalledTimes(1);
   expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-focus");
@@ -392,7 +391,7 @@ it("should not clear notifications for app on close if not enabled", () => {
 
   const onCloseWindow = vi.mocked(global.window_manager.connect).mock
     .calls[0][1];
-  onCloseWindow({} as any, {} as Meta.WindowActor);
+  onCloseWindow({}, {});
 
   expect(settings.get_boolean).toHaveBeenCalledTimes(1);
   expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-close");

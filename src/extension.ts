@@ -1,6 +1,5 @@
 import type Gio from "gi://Gio";
 import type Meta from "gi://Meta";
-import type { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
 import type Shell from "gi://Shell";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
@@ -18,7 +17,7 @@ export enum LogLevel {
 
 function getObjectLabel(name: string, values: Record<string, string | null>) {
   const labels = Object.entries(values)
-    .filter(([_, value]) => value)
+    .filter((entry): entry is [string, string] => entry[1] != null)
     .map(([label, value]) => `${label}: '${value}'`);
   return `${name}(${labels.join(", ")})`;
 }
@@ -41,10 +40,14 @@ function getWindowLabel(window: Meta.Window) {
   });
 }
 
-function getSourceLabel(source: Source) {
+// Source.icon is typed non-nullable upstream but can be null at runtime.
+function getSourceLabel(source: {
+  title: string;
+  icon: { to_string: () => string | null } | null;
+}) {
   return getObjectLabel("Source", {
     ["Title"]: source.title,
-    ["Icon"]: source.icon?.to_string(),
+    ["Icon"]: source.icon?.to_string() ?? null,
   });
 }
 
@@ -54,7 +57,8 @@ export default class JunkNotificationCleaner extends Extension {
   private settings: Gio.Settings | null = null;
 
   private log(level: LogLevel, message: string) {
-    let minLevel = this.settings!.get_string("log-level") as LogLevel;
+    let minLevel = this.settings?.get_string("log-level") as LogLevel | null;
+    minLevel ??= LogLevel.INFO;
     const levels = Object.values(LogLevel);
     if (!levels.includes(minLevel)) minLevel = LogLevel.INFO;
     if (levels.indexOf(level) >= levels.indexOf(minLevel)) {
@@ -69,7 +73,13 @@ export default class JunkNotificationCleaner extends Extension {
     const windowLabel = getWindowLabel(window);
     this.log(LogLevel.DEBUG, `${windowLabel}: received ${event}`);
 
-    const excludedApps = this.settings!.get_strv("excluded-apps");
+    const settings = this.settings;
+    if (!settings) {
+      this.log(LogLevel.ERROR, `${windowLabel}: settings not initialized`);
+      return;
+    }
+
+    const excludedApps = settings.get_strv("excluded-apps");
     for (const wmClassPattern of excludedApps) {
       const result = safeRegexTest(wmClassPattern, window.wmClass);
       if (result === null) {
@@ -108,8 +118,8 @@ export default class JunkNotificationCleaner extends Extension {
     this.settings = this.getSettings();
     this.focusListenerId = global.display.connect(
       "notify::focus-window",
-      ({ focusWindow }: Meta.Display) => {
-        if (this.settings!.get_boolean("delete-on-focus") && focusWindow) {
+      ({ focusWindow }: { focusWindow: Meta.Window | null }) => {
+        if (this.settings?.get_boolean("delete-on-focus") && focusWindow) {
           this.clearNotificationsForApp(focusWindow, "focus");
         }
       },
@@ -117,7 +127,7 @@ export default class JunkNotificationCleaner extends Extension {
     this.closeListenerId = global.window_manager.connect(
       "destroy",
       (_: unknown, { metaWindow }: Meta.WindowActor) => {
-        if (this.settings!.get_boolean("delete-on-close") && metaWindow) {
+        if (this.settings?.get_boolean("delete-on-close") && metaWindow) {
           this.clearNotificationsForApp(metaWindow, "close");
         }
       },

@@ -1,14 +1,19 @@
 {
   "files": ["ambient.d.ts"],
-  "include": ["src/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts",
+    "eslint.config.ts"
+  ],
   "compilerOptions": {
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "./src",
-    "outDir": "dist",
+    "noEmit": true,
     "strict": true,
     "skipLibCheck": true,
-    "target": "ES2022",
-    "lib": ["ES2022"]
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "types": ["vitest/globals"]
   }
 }
