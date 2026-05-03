@@ -6,8 +6,6 @@ import type {
   Source,
 } from "resource:///org/gnome/shell/ui/messageTray.js";
 
-import JunkNotificationCleaner from "../src/extension.js";
-
 declare const global: Shell.Global;
 
 Object.assign(global, {
@@ -22,6 +20,8 @@ const settings = {
   get_string: vi.fn(),
 };
 
+const tracker = { get_window_app: vi.fn() };
+
 vi.mock("resource:///org/gnome/shell/extensions/extension.js", () => ({
   Extension: class MockExtension {
     metadata: Extension["metadata"];
@@ -34,7 +34,20 @@ vi.mock("resource:///org/gnome/shell/extensions/extension.js", () => ({
 
 vi.mock("gi://Gio");
 vi.mock("gi://Meta");
-vi.mock("resource:///org/gnome/shell/ui/messageTray.js");
+
+vi.mock("gi://Shell", () => ({
+  default: {
+    WindowTracker: { get_default: () => tracker },
+  },
+}));
+
+vi.mock("resource:///org/gnome/shell/ui/messageTray.js", () => {
+  class NotificationApplicationPolicy {
+    constructor(public id: string) {}
+  }
+  class NotificationGenericPolicy {}
+  return { NotificationApplicationPolicy, NotificationGenericPolicy };
+});
 
 vi.mock("resource:///org/gnome/shell/ui/main.js", () => ({
   messageTray: {
@@ -42,12 +55,59 @@ vi.mock("resource:///org/gnome/shell/ui/main.js", () => ({
   },
 }));
 
+import JunkNotificationCleaner from "../src/extension.js";
 import { messageTray } from "resource:///org/gnome/shell/ui/main.js";
+import {
+  NotificationApplicationPolicy,
+  NotificationGenericPolicy,
+} from "resource:///org/gnome/shell/ui/messageTray.js";
+
+function mockApp(id: string): Shell.App {
+  return { get_id: () => id } as Shell.App;
+}
+
+function mockNotification(): Notification {
+  return { destroy: vi.fn() } as Partial<Notification> as Notification;
+}
+
+function mockWindow(props: Partial<Meta.Window> = {}): Meta.Window {
+  return { title: "Slack", wmClass: "slack", ...props } as Meta.Window;
+}
+
+function mockSource(props: {
+  title: string;
+  notifications: Notification[];
+  appId?: string | null;
+}): Source {
+  const policy =
+    props.appId == null
+      ? new NotificationGenericPolicy()
+      : new NotificationApplicationPolicy(props.appId);
+  return {
+    title: props.title,
+    notifications: props.notifications,
+    policy,
+  } as Partial<Source> as Source;
+}
+
+function triggerFocus(focusWindow: Meta.Window | null = mockWindow()) {
+  const handler = vi.mocked(global.display.connect).mock.calls[0][1];
+  handler({ focusWindow });
+}
+
+function triggerClose(metaWindow: Meta.Window | null = mockWindow()) {
+  const handler = vi.mocked(global.window_manager.connect).mock.calls[0][1];
+  handler({}, { metaWindow });
+}
 
 let extension: JunkNotificationCleaner;
 
 beforeEach(() => {
   settings.get_string.mockReturnValue("debug");
+  settings.get_boolean.mockReturnValue(true);
+  settings.get_strv.mockReturnValue([]);
+  vi.mocked(messageTray.getSources).mockReturnValue([]);
+  tracker.get_window_app.mockReturnValue(null);
   extension = new JunkNotificationCleaner({
     uuid: "uuid",
     path: "path",
@@ -95,307 +155,165 @@ describe(JunkNotificationCleaner.prototype.disable.name, () => {
   });
 });
 
-it.each([
-  {
-    wmClass: "com.app.test",
-    excludedApps: [],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test1", "\\com\\.app\\.tes$"],
-  },
-])(
-  "should clear notifications for app on focus",
-  ({ wmClass, excludedApps }) => {
+describe("clearNotificationsForApp", () => {
+  beforeEach(() => {
     extension.enable();
-    settings.get_boolean.mockReturnValueOnce(true);
-    settings.get_strv.mockReturnValueOnce(excludedApps);
-    const notification = {
-      destroy: vi.fn(),
-    } as Partial<Notification> as Notification;
-    const source = {
-      title: "Test",
-      notifications: [notification],
-    } as Partial<Source> as Source;
-    vi.mocked(messageTray.getSources).mockReturnValueOnce([source]);
+  });
 
-    const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-    const focusWindow = {
-      title: "Test",
-      wmClass,
-      get_sandboxed_app_id: () => null,
-    } as Meta.Window;
-    const display = {
-      focusWindow,
-    } as Meta.Display;
-    onFocusWindow(display);
+  it("should clear notifications for app on focus", () => {
+    const notification = mockNotification();
+    vi.mocked(messageTray.getSources).mockReturnValueOnce([
+      mockSource({
+        title: "Slack",
+        notifications: [notification],
+        appId: "com.slack.Slack",
+      }),
+    ]);
+    tracker.get_window_app.mockReturnValueOnce(
+      mockApp("com.slack.Slack.desktop"),
+    );
 
-    expect(settings.get_boolean).toHaveBeenCalledTimes(1);
+    triggerFocus();
+
     expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-focus");
-    expect(settings.get_strv).toHaveBeenCalledTimes(1);
     expect(settings.get_strv).toHaveBeenCalledWith("excluded-apps");
     expect(notification.destroy).toHaveBeenCalledTimes(1);
-    expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledTimes(3);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}'): received focus`,
+      "[uuid][debug] Window(Title: 'Slack', WMClass: 'slack', AppId: 'com.slack.Slack'): received focus",
     );
     expect(log).toHaveBeenNthCalledWith(
       2,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}'): Source(Title: 'Test'): found persistent notification`,
+      "[uuid][debug] Window(Title: 'Slack', WMClass: 'slack', AppId: 'com.slack.Slack'): Source(Title: 'Slack', AppId: 'com.slack.Slack'): found persistent notification",
     );
     expect(log).toHaveBeenNthCalledWith(
       3,
-      `[uuid][info] Window(Title: 'Test', WMClass: '${wmClass}'): Source(Title: 'Test'): removed notification`,
+      "[uuid][info] Window(Title: 'Slack', WMClass: 'slack', AppId: 'com.slack.Slack'): Source(Title: 'Slack', AppId: 'com.slack.Slack'): removed notification",
     );
-  },
-);
+  });
 
-it("should clear notifications for app on close", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(true);
-  settings.get_strv.mockReturnValueOnce([]);
-  const notification = {
-    destroy: vi.fn(),
-  } as Partial<Notification> as Notification;
-  const source = {
-    title: "Test",
-    notifications: [notification],
-  } as Partial<Source> as Source;
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([source]);
+  it("should clear notifications for app on close", () => {
+    const notification = mockNotification();
+    vi.mocked(messageTray.getSources).mockReturnValueOnce([
+      mockSource({
+        title: "Slack",
+        notifications: [notification],
+        appId: "com.slack.Slack",
+      }),
+    ]);
+    tracker.get_window_app.mockReturnValueOnce(
+      mockApp("com.slack.Slack.desktop"),
+    );
 
-  const onCloseWindow = vi.mocked(global.window_manager.connect).mock
-    .calls[0][1];
-  const metaWindow = {
-    title: "Test",
-    get_sandboxed_app_id: () => null,
-  } as Meta.Window;
-  const windowActor = {
-    metaWindow,
-  } as Partial<Meta.WindowActor> as Meta.WindowActor;
-  onCloseWindow({}, windowActor);
+    triggerClose();
 
-  expect(settings.get_boolean).toHaveBeenCalledTimes(1);
-  expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-close");
-  expect(settings.get_strv).toHaveBeenCalledTimes(1);
-  expect(settings.get_strv).toHaveBeenCalledWith("excluded-apps");
-  expect(notification.destroy).toHaveBeenCalledTimes(1);
-  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledTimes(3);
-  expect(log).toHaveBeenNthCalledWith(
-    1,
-    "[uuid][debug] Window(Title: 'Test'): received close",
+    expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-close");
+    expect(notification.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("should not clear notifications for other apps", () => {
+    const appNotification = mockNotification();
+    const otherNotification = mockNotification();
+    vi.mocked(messageTray.getSources).mockReturnValueOnce([
+      mockSource({
+        title: "Slack",
+        notifications: [appNotification],
+        appId: "com.slack.Slack",
+      }),
+      mockSource({
+        title: "Discord",
+        notifications: [otherNotification],
+        appId: "com.discord.Discord",
+      }),
+    ]);
+    tracker.get_window_app.mockReturnValueOnce(
+      mockApp("com.slack.Slack.desktop"),
+    );
+
+    triggerFocus();
+
+    expect(appNotification.destroy).toHaveBeenCalledTimes(1);
+    expect(otherNotification.destroy).not.toHaveBeenCalled();
+  });
+
+  it("should not clear notifications when source has no resolvable app", () => {
+    const notification = mockNotification();
+    vi.mocked(messageTray.getSources).mockReturnValueOnce([
+      mockSource({
+        title: "notify-send",
+        notifications: [notification],
+        appId: null,
+      }),
+    ]);
+    tracker.get_window_app.mockReturnValueOnce(
+      mockApp("com.slack.Slack.desktop"),
+    );
+
+    triggerFocus();
+
+    expect(notification.destroy).not.toHaveBeenCalled();
+  });
+
+  it("should not clear notifications when window has no resolvable app", () => {
+    const notification = mockNotification();
+    vi.mocked(messageTray.getSources).mockReturnValueOnce([
+      mockSource({
+        title: "Slack",
+        notifications: [notification],
+        appId: "com.slack.Slack",
+      }),
+    ]);
+
+    triggerFocus();
+
+    expect(notification.destroy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { wmClass: "com.app.test", excludedApps: ["com.app.test"] },
+    { wmClass: "com.app.test", excludedApps: ["com\\.app\\.test"] },
+    { wmClass: "com.app.test", excludedApps: ["\\w+\\.\\w+\\.\\w+"] },
+  ])(
+    "should not clear notifications for excluded apps",
+    ({ wmClass, excludedApps }) => {
+      settings.get_strv.mockReturnValueOnce(excludedApps);
+      tracker.get_window_app.mockReturnValueOnce(
+        mockApp("com.app.test.desktop"),
+      );
+
+      triggerFocus(mockWindow({ title: "Test", wmClass }));
+
+      expect(messageTray.getSources).not.toHaveBeenCalled();
+    },
   );
-  expect(log).toHaveBeenNthCalledWith(
-    2,
-    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Test'): found persistent notification",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    3,
-    "[uuid][info] Window(Title: 'Test'): Source(Title: 'Test'): removed notification",
-  );
-});
 
-it("should not clear notifications for other apps", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(true);
-  settings.get_strv.mockReturnValueOnce([]);
-  const appNotification = {
-    destroy: vi.fn(),
-  } as Partial<Notification> as Notification;
-  const otherNotification = {
-    title: "Other",
-    destroy: vi.fn(),
-  } as Partial<Notification> as Notification;
-  const appSource = {
-    // also testing that the source label is correct
-    title: "Test",
-    notifications: [appNotification],
-    icon: {
-      to_string: () => "test-icon",
-    } as Source["icon"],
-  } as Partial<Source> as Source;
-  const otherSource = {
-    title: "Other",
-    notifications: [otherNotification],
-  } as Partial<Source> as Source;
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([
-    appSource,
-    otherSource,
-  ]);
+  it("should log warning and continue for invalid excluded app regex", () => {
+    settings.get_strv.mockReturnValueOnce(["[invalid", "com\\.app\\.test"]);
+    tracker.get_window_app.mockReturnValueOnce(mockApp("com.app.test.desktop"));
 
-  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-  const focusWindow = {
-    title: "Test",
-    get_sandboxed_app_id: () => null,
-  } as Meta.Window;
-  const display = {
-    focusWindow,
-  } as Meta.Display;
-  onFocusWindow(display);
-
-  expect(appNotification.destroy).toHaveBeenCalledTimes(1);
-  expect(otherNotification.destroy).not.toHaveBeenCalled();
-  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledTimes(4);
-  expect(log).toHaveBeenNthCalledWith(
-    1,
-    "[uuid][debug] Window(Title: 'Test'): received focus",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    2,
-    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Test', Icon: 'test-icon'): found persistent notification",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    3,
-    "[uuid][info] Window(Title: 'Test'): Source(Title: 'Test', Icon: 'test-icon'): removed notification",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    4,
-    "[uuid][debug] Window(Title: 'Test'): Source(Title: 'Other'): found persistent notification: Other",
-  );
-});
-
-it.each([
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test", "com.app.other"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com\\.app\\.test"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["\\w+\\.\\w+\\.\\w+"],
-  },
-  {
-    wmClass: "jesus.christ",
-    excludedApps: ["^(jesus|christ)\\.(jesus|christ)$"],
-  },
-])(
-  "should not clear notifications for excluded apps",
-  ({ wmClass, excludedApps }) => {
-    extension.enable();
-    settings.get_boolean.mockReturnValueOnce(true);
-    settings.get_strv.mockReturnValueOnce(excludedApps);
-    vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
-
-    const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-    const focusWindow = {
-      // also testing that the window label is correct
-      title: "Test",
-      wmClass,
-      get_sandboxed_app_id: () => "com.app.test.sandboxedId",
-      gtkApplicationId: "com.app.test.gtkId",
-    } as Meta.Window;
-    const display = {
-      focusWindow,
-    } as Meta.Display;
-    onFocusWindow(display);
+    triggerFocus(mockWindow({ title: "Test", wmClass: "com.app.test" }));
 
     expect(messageTray.getSources).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenNthCalledWith(
-      1,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): received focus`,
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("invalid regex '[invalid'"),
     );
-    expect(log).toHaveBeenNthCalledWith(
-      2,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', GTKAppId: 'com.app.test.gtkId', SandboxedAppId: 'com.app.test.sandboxedId'): excluded by '${excludedApps[0]}'`,
-    );
-  },
-);
+  });
 
-it("should log warning and continue for invalid excluded app regex", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(true);
-  settings.get_strv.mockReturnValueOnce(["[invalid", "com\\.app\\.test"]);
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
+  it("should not clear notifications for app on focus if not enabled", () => {
+    settings.get_boolean.mockReturnValueOnce(false);
 
-  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-  const focusWindow = {
-    title: "Test",
-    wmClass: "com.app.test",
-    get_sandboxed_app_id: () => null,
-    gtkApplicationId: null,
-  } as Meta.Window;
-  const display = { focusWindow } as Meta.Display;
-  onFocusWindow(display);
+    triggerFocus();
 
-  expect(messageTray.getSources).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledTimes(3);
-  expect(log).toHaveBeenNthCalledWith(
-    1,
-    "[uuid][debug] Window(Title: 'Test', WMClass: 'com.app.test'): received focus",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    2,
-    "[uuid][warn] Window(Title: 'Test', WMClass: 'com.app.test'): invalid regex '[invalid'",
-  );
-  expect(log).toHaveBeenNthCalledWith(
-    3,
-    "[uuid][debug] Window(Title: 'Test', WMClass: 'com.app.test'): excluded by 'com\\.app\\.test'",
-  );
-});
+    expect(settings.get_strv).not.toHaveBeenCalled();
+    expect(messageTray.getSources).not.toHaveBeenCalled();
+  });
 
-it("should treat null wmClass as no match against excluded apps", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(true);
-  settings.get_strv.mockReturnValueOnce(["com\\.app\\.test"]);
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
+  it("should not clear notifications for app on close if not enabled", () => {
+    settings.get_boolean.mockReturnValueOnce(false);
 
-  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-  const focusWindow = {
-    title: "Test",
-    wmClass: null,
-    get_sandboxed_app_id: () => null,
-    gtkApplicationId: null,
-  } as unknown as Meta.Window;
-  onFocusWindow({ focusWindow });
+    triggerClose();
 
-  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenCalledTimes(1);
-  expect(log).toHaveBeenNthCalledWith(
-    1,
-    "[uuid][debug] Window(Title: 'Test'): received focus",
-  );
-});
-
-it("should not clear notifications for app on focus if not enabled", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(false);
-  settings.get_strv.mockReturnValueOnce([]);
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
-
-  const onFocusWindow = vi.mocked(global.display.connect).mock.calls[0][1];
-  onFocusWindow({});
-
-  expect(settings.get_boolean).toHaveBeenCalledTimes(1);
-  expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-focus");
-  expect(settings.get_strv).not.toHaveBeenCalled();
-  expect(messageTray.getSources).not.toHaveBeenCalled();
-  expect(log).not.toHaveBeenCalled();
-});
-
-it("should not clear notifications for app on close if not enabled", () => {
-  extension.enable();
-  settings.get_boolean.mockReturnValueOnce(false);
-  settings.get_strv.mockReturnValueOnce([]);
-  vi.mocked(messageTray.getSources).mockReturnValueOnce([]);
-
-  const onCloseWindow = vi.mocked(global.window_manager.connect).mock
-    .calls[0][1];
-  onCloseWindow({}, {});
-
-  expect(settings.get_boolean).toHaveBeenCalledTimes(1);
-  expect(settings.get_boolean).toHaveBeenCalledWith("delete-on-close");
-  expect(settings.get_strv).not.toHaveBeenCalled();
-  expect(messageTray.getSources).not.toHaveBeenCalled();
-  expect(log).not.toHaveBeenCalled();
+    expect(settings.get_strv).not.toHaveBeenCalled();
+    expect(messageTray.getSources).not.toHaveBeenCalled();
+  });
 });

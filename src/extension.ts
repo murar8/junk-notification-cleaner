@@ -1,10 +1,12 @@
 import type Gio from "gi://Gio";
 import type Meta from "gi://Meta";
-import type Shell from "gi://Shell";
+import type { Source } from "resource:///org/gnome/shell/ui/messageTray.js";
+
+import Shell from "gi://Shell";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import * as MessageTray from "resource:///org/gnome/shell/ui/messageTray.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
-import { isMatch } from "./isMatch.js";
 
 declare const global: Shell.Global;
 
@@ -13,6 +15,21 @@ export enum LogLevel {
   INFO = "info",
   WARN = "warn",
   ERROR = "error",
+}
+
+// Sources for resolved apps carry a NotificationApplicationPolicy whose `id`
+// is the canonical desktop id (without the .desktop suffix). Sources without
+// a resolved app (e.g. raw notify-send) get a NotificationGenericPolicy and
+// are intentionally not matched.
+function getSourceAppId(source: Source): string | null {
+  return source.policy instanceof MessageTray.NotificationApplicationPolicy
+    ? source.policy.id
+    : null;
+}
+
+// Strip ".desktop" so this matches policy.id from NotificationApplicationPolicy.
+function getWindowAppId(app: Shell.App | null): string | null {
+  return app?.get_id().replace(/\.desktop$/, "") ?? null;
 }
 
 function getObjectLabel(name: string, values: Record<string, string | null>) {
@@ -31,23 +48,18 @@ function safeRegexTest(pattern: string, value: string | null): boolean | null {
   }
 }
 
-function getWindowLabel(window: Meta.Window) {
+function getWindowLabel(window: Meta.Window, app: Shell.App | null) {
   return getObjectLabel("Window", {
-    ["Title"]: window.title,
-    ["WMClass"]: window.wmClass,
-    ["GTKAppId"]: window.gtkApplicationId,
-    ["SandboxedAppId"]: window.get_sandboxed_app_id(),
+    Title: window.title,
+    WMClass: window.wmClass,
+    AppId: getWindowAppId(app),
   });
 }
 
-// Source.icon is typed non-nullable upstream but can be null at runtime.
-function getSourceLabel(source: {
-  title: string;
-  icon: { to_string: () => string | null } | null;
-}) {
+function getSourceLabel(source: Source) {
   return getObjectLabel("Source", {
-    ["Title"]: source.title,
-    ["Icon"]: source.icon?.to_string() ?? null,
+    Title: source.title,
+    AppId: getSourceAppId(source),
   });
 }
 
@@ -55,12 +67,12 @@ export default class JunkNotificationCleaner extends Extension {
   private focusListenerId: number | null = null;
   private closeListenerId: number | null = null;
   private settings: Gio.Settings | null = null;
+  private tracker: Shell.WindowTracker = Shell.WindowTracker.get_default();
 
   private log(level: LogLevel, message: string) {
-    let minLevel = this.settings?.get_string("log-level") as LogLevel | null;
-    minLevel ??= LogLevel.INFO;
     const levels = Object.values(LogLevel);
-    if (!levels.includes(minLevel)) minLevel = LogLevel.INFO;
+    const pref = this.settings?.get_string("log-level") as LogLevel | null;
+    const minLevel = pref && levels.includes(pref) ? pref : LogLevel.INFO;
     if (levels.indexOf(level) >= levels.indexOf(minLevel)) {
       log(`[${this.metadata.uuid}][${level}] ${message}`);
     }
@@ -70,7 +82,11 @@ export default class JunkNotificationCleaner extends Extension {
     window: Meta.Window,
     event: "focus" | "close",
   ) {
-    const windowLabel = getWindowLabel(window);
+    // gir types claim get_window_app is non-null, but at runtime it can be null
+    // for windows the shell hasn't matched to a .desktop entry.
+    const windowApp = this.tracker.get_window_app(window) as Shell.App | null;
+    const windowAppId = getWindowAppId(windowApp);
+    const windowLabel = getWindowLabel(window, windowApp);
     this.log(LogLevel.DEBUG, `${windowLabel}: received ${event}`);
 
     const settings = this.settings;
@@ -80,34 +96,38 @@ export default class JunkNotificationCleaner extends Extension {
     }
 
     const excludedApps = settings.get_strv("excluded-apps");
-    for (const wmClassPattern of excludedApps) {
-      const result = safeRegexTest(wmClassPattern, window.wmClass);
+    for (const pattern of excludedApps) {
+      const result = safeRegexTest(pattern, window.wmClass);
       if (result === null) {
-        this.log(
-          LogLevel.WARN,
-          `${windowLabel}: invalid regex '${wmClassPattern}'`,
-        );
+        this.log(LogLevel.WARN, `${windowLabel}: invalid regex '${pattern}'`);
       } else if (result) {
-        this.log(
-          LogLevel.DEBUG,
-          `${windowLabel}: excluded by '${wmClassPattern}'`,
-        );
+        this.log(LogLevel.DEBUG, `${windowLabel}: excluded by '${pattern}'`);
         return;
       }
+    }
+
+    if (windowAppId === null) {
+      this.log(LogLevel.DEBUG, `${windowLabel}: no app id, skipping`);
+      return;
     }
 
     for (const source of Main.messageTray.getSources()) {
       const sourceLabel = getSourceLabel(source);
       for (const notification of [...source.notifications]) {
+        const titleSuffix = notification.title ? `: ${notification.title}` : "";
+        const kind = notification.isTransient ? "transient" : "persistent";
         this.log(
           LogLevel.DEBUG,
-          `${windowLabel}: ${sourceLabel}: found ${notification.isTransient ? "transient" : "persistent"} notification${notification.title ? `: ${notification.title}` : ""}`,
+          `${windowLabel}: ${sourceLabel}: found ${kind} notification${titleSuffix}`,
         );
-        if (isMatch(window, source) && !notification.isTransient) {
+        if (
+          getSourceAppId(source) === windowAppId &&
+          !notification.isTransient
+        ) {
           notification.destroy();
           this.log(
             LogLevel.INFO,
-            `${windowLabel}: ${sourceLabel}: removed notification${notification.title ? `: ${notification.title}` : ""}`,
+            `${windowLabel}: ${sourceLabel}: removed notification${titleSuffix}`,
           );
         }
       }
@@ -135,6 +155,7 @@ export default class JunkNotificationCleaner extends Extension {
   }
 
   disable() {
+    this.settings = null;
     if (this.focusListenerId !== null) {
       global.display.disconnect(this.focusListenerId);
       this.focusListenerId = null;
@@ -142,9 +163,6 @@ export default class JunkNotificationCleaner extends Extension {
     if (this.closeListenerId !== null) {
       global.window_manager.disconnect(this.closeListenerId);
       this.closeListenerId = null;
-    }
-    if (this.settings) {
-      this.settings = null;
     }
   }
 }
