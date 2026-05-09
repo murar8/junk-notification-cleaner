@@ -12,7 +12,7 @@ export default defineConfig({
       tsconfig: "./tsconfig.json",
     },
     coverage: {
-      include: ["src/extension.ts", "src/isMatch.ts"],
+      include: ["src/extension.ts"],
     },
   },
 });
