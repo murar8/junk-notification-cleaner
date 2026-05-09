@@ -52,8 +52,13 @@ jobs:
           source-dir: dist
           extra-source: |
             prefs.js
-            isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: junk-notification-cleaner-pr-${{ github.event.pull_request.number }}
+          path: ${{ steps.package.outputs.zip-file }}
       - name: Create pre-release for CI build
         uses: softprops/action-gh-release@v3
         if: github.event_name == 'push' && github.ref_type != 'tag'
@@ -72,7 +77,6 @@ jobs:
           source-dir: dist
           extra-source: |
             prefs.js
-            isMatch.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
           username: ${{ secrets.GNOME_EXTENSIONS_USER }}
           password: ${{ secrets.GNOME_EXTENSIONS_PASSWORD }}

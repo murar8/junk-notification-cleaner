@@ -1,10 +1,10 @@
 import type Gio from "gi://Gio";
 import type Meta from "gi://Meta";
-import type Shell from "gi://Shell";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
-import { isMatch } from "./isMatch.js";
+import Shell from "gi://Shell";
+import { NotificationApplicationPolicy } from "resource:///org/gnome/shell/ui/messageTray.js";
 
 declare const global: Shell.Global;
 
@@ -22,32 +22,21 @@ function getObjectLabel(name: string, values: Record<string, string | null>) {
   return `${name}(${labels.join(", ")})`;
 }
 
-function safeRegexTest(pattern: string, value: string | null): boolean | null {
-  if (value === null) return false;
-  try {
-    return new RegExp(pattern).test(value);
-  } catch {
-    return null;
-  }
-}
-
-function getWindowLabel(window: Meta.Window) {
+function getWindowLabel(window: Meta.Window, app?: Shell.App | null) {
   return getObjectLabel("Window", {
-    ["Title"]: window.title,
-    ["WMClass"]: window.wmClass,
-    ["GTKAppId"]: window.gtkApplicationId,
-    ["SandboxedAppId"]: window.get_sandboxed_app_id(),
+    Title: window.title,
+    WMClass: window.wmClass,
+    AppId: app?.id ?? null,
   });
 }
 
-// Source.icon is typed non-nullable upstream but can be null at runtime.
-function getSourceLabel(source: {
-  title: string;
-  icon: { to_string: () => string | null } | null;
-}) {
+function getSourceLabel(source: { title: string; policy: unknown }) {
   return getObjectLabel("Source", {
-    ["Title"]: source.title,
-    ["Icon"]: source.icon?.to_string() ?? null,
+    Title: source.title,
+    PolicyId:
+      source.policy instanceof NotificationApplicationPolicy
+        ? source.policy.id
+        : null,
   });
 }
 
@@ -55,6 +44,7 @@ export default class JunkNotificationCleaner extends Extension {
   private focusListenerId: number | null = null;
   private closeListenerId: number | null = null;
   private settings: Gio.Settings | null = null;
+  private windowTracker = Shell.WindowTracker.get_default();
 
   private log(level: LogLevel, message: string) {
     let minLevel = this.settings?.get_string("log-level") as LogLevel | null;
@@ -70,7 +60,8 @@ export default class JunkNotificationCleaner extends Extension {
     window: Meta.Window,
     event: "focus" | "close",
   ) {
-    const windowLabel = getWindowLabel(window);
+    const app = this.windowTracker.get_window_app(window) as Shell.App | null;
+    const windowLabel = getWindowLabel(window, app);
     this.log(LogLevel.DEBUG, `${windowLabel}: received ${event}`);
 
     const settings = this.settings;
@@ -79,36 +70,49 @@ export default class JunkNotificationCleaner extends Extension {
       return;
     }
 
+    if (!app) {
+      this.log(LogLevel.DEBUG, `${windowLabel}: no app associated with window`);
+      return;
+    }
+
     const excludedApps = settings.get_strv("excluded-apps");
-    for (const wmClassPattern of excludedApps) {
-      const result = safeRegexTest(wmClassPattern, window.wmClass);
-      if (result === null) {
-        this.log(
-          LogLevel.WARN,
-          `${windowLabel}: invalid regex '${wmClassPattern}'`,
-        );
-      } else if (result) {
-        this.log(
-          LogLevel.DEBUG,
-          `${windowLabel}: excluded by '${wmClassPattern}'`,
-        );
+    for (const pattern of excludedApps) {
+      let regex: RegExp;
+      try {
+        regex = new RegExp(pattern);
+      } catch {
+        this.log(LogLevel.WARN, `${windowLabel}: invalid regex '${pattern}'`);
+        continue;
+      }
+      if (window.wmClass !== null && regex.test(window.wmClass)) {
+        this.log(LogLevel.DEBUG, `${windowLabel}: excluded by '${pattern}'`);
         return;
       }
     }
 
+    // WindowTracker returns the desktop file id (e.g. "com.foo.desktop"),
+    // but NotificationApplicationPolicy.id strips the ".desktop" suffix.
+    const appId = app.id.replace(/\.desktop$/, "");
+
     for (const source of Main.messageTray.getSources()) {
       const sourceLabel = getSourceLabel(source);
       for (const notification of [...source.notifications]) {
+        const prefix = `${windowLabel}: ${sourceLabel}`;
+        const suffix = notification.title ? `: ${notification.title}` : "";
+        const kind = notification.isTransient ? "transient" : "persistent";
         this.log(
           LogLevel.DEBUG,
-          `${windowLabel}: ${sourceLabel}: found ${notification.isTransient ? "transient" : "persistent"} notification${notification.title ? `: ${notification.title}` : ""}`,
+          `${prefix}: found ${kind} notification${suffix}`,
         );
-        if (isMatch(window, source) && !notification.isTransient) {
+        if (notification.isTransient) continue;
+        // Only sources tied to a desktop app expose an app id; system sources
+        // (NotificationGenericPolicy) intentionally don't match any window.
+        if (
+          source.policy instanceof NotificationApplicationPolicy &&
+          source.policy.id === appId
+        ) {
           notification.destroy();
-          this.log(
-            LogLevel.INFO,
-            `${windowLabel}: ${sourceLabel}: removed notification${notification.title ? `: ${notification.title}` : ""}`,
-          );
+          this.log(LogLevel.INFO, `${prefix}: removed notification${suffix}`);
         }
       }
     }
@@ -135,6 +139,7 @@ export default class JunkNotificationCleaner extends Extension {
   }
 
   disable() {
+    this.settings = null;
     if (this.focusListenerId !== null) {
       global.display.disconnect(this.focusListenerId);
       this.focusListenerId = null;
@@ -142,9 +147,6 @@ export default class JunkNotificationCleaner extends Extension {
     if (this.closeListenerId !== null) {
       global.window_manager.disconnect(this.closeListenerId);
       this.closeListenerId = null;
-    }
-    if (this.settings) {
-      this.settings = null;
     }
   }
 }
