@@ -54,7 +54,7 @@ jobs:
             prefs.js
           schema: ../schemas/org.gnome.shell.extensions.junk-notification-cleaner.gschema.xml
       - name: Upload extension artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: github.event_name == 'pull_request'
         with:
           name: junk-notification-cleaner-pr-${{ github.event.pull_request.number }}
