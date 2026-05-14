@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
+  <enum id="org.gnome.shell.extensions.junk-notification-cleaner.log-level">
+    <value nick="debug" value="0"/>
+    <value nick="info" value="1"/>
+    <value nick="warn" value="2"/>
+    <value nick="error" value="3"/>
+  </enum>
   <schema id="org.gnome.shell.extensions.junk-notification-cleaner" path="/org/gnome/shell/extensions/junk-notification-cleaner/">
     <key name="delete-on-focus" type="b">
       <default>true</default>
@@ -16,7 +22,7 @@
       <summary>Excluded applications</summary>
       <description>List of application ids (.desktop file names without the suffix) for which notifications should not be automatically deleted.</description>
     </key>
-    <key name="log-level" type="s">
+    <key name="log-level" enum="org.gnome.shell.extensions.junk-notification-cleaner.log-level">
       <default>'info'</default>
       <summary>Log level</summary>
       <description>Set the logging level for troubleshooting notification matching issues.</description>
