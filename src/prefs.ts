@@ -3,11 +3,88 @@ import Gio from "gi://Gio";
 import GioUnix from "gi://GioUnix";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+
+import type GObject from "gi://GObject";
 import type { LogLevel } from "./extension.js";
 
-const LOG_LEVELS: `${LogLevel}`[] = ["debug", "info", "warn", "error"];
+type DeleteTriggerKey = "delete-on-focus" | "delete-on-close";
 
-function getAppId(app: GioUnix.DesktopAppInfo): string {
+class PreferencesModel {
+  static readonly LOG_LEVELS = [
+    "debug",
+    "info",
+    "warn",
+    "error",
+  ] as const satisfies `${LogLevel}`[];
+
+  constructor(private settings: Gio.Settings) {}
+
+  bindDeleteTrigger(
+    key: DeleteTriggerKey,
+    target: GObject.Object,
+    property: string,
+  ): void {
+    this.settings.bind(key, target, property, Gio.SettingsBindFlags.DEFAULT);
+  }
+
+  getExcludedApps(): string[] {
+    return this.settings.get_strv("excluded-apps");
+  }
+
+  addExcludedApp(appId: string): void {
+    const current = this.getExcludedApps();
+    if (current.includes(appId)) return;
+    this.settings.set_strv("excluded-apps", [...current, appId]);
+  }
+
+  removeExcludedApp(appId: string): void {
+    this.settings.set_strv(
+      "excluded-apps",
+      this.getExcludedApps().filter((id) => id !== appId),
+    );
+  }
+
+  onExcludedAppsChanged(handler: () => void): number {
+    return this.settings.connect("changed::excluded-apps", handler);
+  }
+
+  getLogLevelIndex(): number {
+    const current = this.settings.get_string("log-level") as `${LogLevel}`;
+    const idx = PreferencesModel.LOG_LEVELS.indexOf(current);
+    if (idx >= 0) return idx;
+    logError(`Invalid log level in settings: ${current}, setting to "info".`);
+    return PreferencesModel.LOG_LEVELS.indexOf("info");
+  }
+
+  setLogLevelIndex(idx: number): void {
+    this.settings.set_string(
+      "log-level",
+      PreferencesModel.LOG_LEVELS[idx] ?? "info",
+    );
+  }
+
+  onLogLevelChanged(handler: () => void): number {
+    return this.settings.connect("changed::log-level", handler);
+  }
+
+  disconnect(handlerId: number): void {
+    this.settings.disconnect(handlerId);
+  }
+
+  getSelectableApps(): Gio.AppInfo[] {
+    const excluded = new Set(this.getExcludedApps());
+    return Gio.AppInfo.get_all()
+      .filter((a) => {
+        const id = getAppId(a);
+        return a.should_show() && id !== "" && !excluded.has(id);
+      })
+      .sort((a, b) => {
+        return a.get_name().localeCompare(b.get_name());
+      });
+  }
+}
+
+function getAppId(app: Gio.AppInfo): string {
   return (app.get_id() ?? "").replace(/\.desktop$/, "");
 }
 
@@ -15,8 +92,15 @@ function lookupApp(appId: string): GioUnix.DesktopAppInfo | null {
   return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
 }
 
+function rowMatchesQuery(row: Adw.ActionRow, query: string): boolean {
+  if (query === "") return true;
+  const title = row.get_title().toLowerCase();
+  const subtitle = (row.get_subtitle() ?? "").toLowerCase();
+  return title.includes(query) || subtitle.includes(query);
+}
+
 function buildAppRow(
-  app: GioUnix.DesktopAppInfo | null | undefined,
+  app: Gio.AppInfo | null,
   appId: string,
   extra: Partial<Adw.ActionRow.ConstructorProps> = {},
 ): Adw.ActionRow {
@@ -32,10 +116,10 @@ function buildAppRow(
 }
 
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
-  private settings!: Gio.Settings;
+  private model!: PreferencesModel;
 
   getPreferencesWidget() {
-    this.settings = this.getSettings();
+    this.model = new PreferencesModel(this.getSettings());
 
     const page = new Adw.PreferencesPage();
     page.set_title("Settings");
@@ -47,40 +131,6 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
 
     return page;
   }
-
-  // ── business logic ──────────────────────────────────────────────────────
-
-  getExcludedApps(): string[] {
-    return this.settings.get_strv("excluded-apps");
-  }
-
-  addExcludedApp(appId: string): void {
-    const current = this.getExcludedApps();
-    if (current.includes(appId)) return;
-    this.settings.set_strv("excluded-apps", [...current, appId]);
-  }
-
-  removeExcludedApp(appId: string): void {
-    const current = this.getExcludedApps();
-    this.settings.set_strv(
-      "excluded-apps",
-      current.filter((id) => id !== appId),
-    );
-  }
-
-  getSelectableApps(): GioUnix.DesktopAppInfo[] {
-    const excluded = new Set(this.getExcludedApps());
-    return (Gio.AppInfo.get_all() as GioUnix.DesktopAppInfo[])
-      .filter((a) => {
-        const id = getAppId(a);
-        return a.should_show() && id !== "" && !excluded.has(id);
-      })
-      .sort((a, b) => {
-        return a.get_name().localeCompare(b.get_name());
-      });
-  }
-
-  // ── UI builders ─────────────────────────────────────────────────────────
 
   private buildGeneralGroup(): Adw.PreferencesGroup {
     const group = new Adw.PreferencesGroup();
@@ -105,7 +155,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   }
 
   private buildSwitchRow(opts: {
-    key: string;
+    key: DeleteTriggerKey;
     title: string;
     subtitle: string;
   }): Adw.ActionRow {
@@ -114,12 +164,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       subtitle: opts.subtitle,
     });
     const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-    this.settings.bind(
-      opts.key,
-      toggle,
-      "active",
-      Gio.SettingsBindFlags.DEFAULT,
-    );
+    this.model.bindDeleteTrigger(opts.key, toggle, "active");
     row.add_suffix(toggle);
     return row;
   }
@@ -134,25 +179,20 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
         "Set the logging level for troubleshooting notification matching.",
     });
     const dropdown = new Gtk.DropDown({
-      model: Gtk.StringList.new(LOG_LEVELS),
+      model: Gtk.StringList.new([...PreferencesModel.LOG_LEVELS]),
       valign: Gtk.Align.CENTER,
     });
 
     const syncDropdown = () => {
-      const current = this.settings.get_string("log-level");
-      const idx = LOG_LEVELS.indexOf(current as LogLevel);
-      dropdown.set_selected(idx === -1 ? LOG_LEVELS.indexOf("info") : idx);
+      dropdown.set_selected(this.model.getLogLevelIndex());
     };
     syncDropdown();
-    const changedId = this.settings.connect("changed::log-level", syncDropdown);
-    dropdown.connect("notify::selected", () => {
-      this.settings.set_string(
-        "log-level",
-        LOG_LEVELS[dropdown.get_selected()] ?? "info",
-      );
+    const changedId = this.model.onLogLevelChanged(syncDropdown);
+    dropdown.connect("notify::selected", (dd: Gtk.DropDown) => {
+      this.model.setLogLevelIndex(dd.get_selected());
     });
     dropdown.connect("destroy", () => {
-      this.settings.disconnect(changedId);
+      this.model.disconnect(changedId);
     });
 
     row.add_suffix(dropdown);
@@ -175,10 +215,10 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       css_classes: ["flat"],
       valign: Gtk.Align.CENTER,
     });
-    addButton.connect("clicked", () => {
-      const parent = addButton.get_root() as Gtk.Window | null;
+    addButton.connect("clicked", (btn: Gtk.Button) => {
+      const parent = btn.get_root() as Gtk.Window | null;
       this.openAppSelector(parent, (appId) => {
-        this.addExcludedApp(appId);
+        this.model.addExcludedApp(appId);
       });
     });
     group.set_header_suffix(addButton);
@@ -202,11 +242,11 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     );
 
     this.rebuildExcludedAppsList(listBox);
-    const handlerId = this.settings.connect("changed::excluded-apps", () => {
+    const handlerId = this.model.onExcludedAppsChanged(() => {
       this.rebuildExcludedAppsList(listBox);
     });
     listBox.connect("destroy", () => {
-      this.settings.disconnect(handlerId);
+      this.model.disconnect(handlerId);
     });
 
     return listBox;
@@ -214,7 +254,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
 
   private rebuildExcludedAppsList(listBox: Gtk.ListBox): void {
     listBox.remove_all();
-    for (const appId of this.getExcludedApps()) {
+    for (const appId of this.model.getExcludedApps()) {
       listBox.append(this.buildExcludedAppRow(appId));
     }
   }
@@ -229,7 +269,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       valign: Gtk.Align.CENTER,
     });
     removeButton.connect("clicked", () => {
-      this.removeExcludedApp(appId);
+      this.model.removeExcludedApp(appId);
     });
     row.add_suffix(removeButton);
 
@@ -248,7 +288,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       margin_end: 8,
     });
 
-    for (const app of this.getSelectableApps()) {
+    for (const app of this.model.getSelectableApps()) {
       const appId = getAppId(app);
       const row = buildAppRow(app, appId, { activatable: true });
       row.connect("activated", () => onActivated(appId));
@@ -282,16 +322,13 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       window.close();
     });
 
-    let query = "";
-    appList.set_filter_func((row) => {
-      if (query === "") return true;
-      const actionRow = row as Adw.ActionRow;
-      const title = actionRow.get_title().toLowerCase();
-      const subtitle = (actionRow.get_subtitle() ?? "").toLowerCase();
-      return title.includes(query) || subtitle.includes(query);
-    });
+    appList.set_filter_func((row) =>
+      rowMatchesQuery(
+        row as Adw.ActionRow,
+        search.get_text().toLowerCase().trim(),
+      ),
+    );
     search.connect("search-changed", () => {
-      query = search.get_text().toLowerCase().trim();
       appList.invalidate_filter();
     });
 
