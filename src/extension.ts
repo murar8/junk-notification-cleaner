@@ -97,9 +97,10 @@ export default class JunkNotificationCleaner extends Extension {
         );
         if (notification.isTransient) continue;
         // Fallback for generic-policy sources (libnotify clients that don't
-        // send a desktop-entry hint, e.g. Slack channel messages): both
-        // source.title and app.get_name() resolve to the .desktop file's Name=
-        // field, so equality is an identity check, not a heuristic.
+        // send a desktop-entry hint, e.g. Slack channel messages): match by
+        // source.title against the app's display name. Clients are free to set
+        // source.title to anything, so this is a heuristic and may yield false
+        // positives for apps whose notifications carry per-conversation titles.
         const matches =
           source.policy instanceof NotificationApplicationPolicy
             ? source.policy.id === appId
