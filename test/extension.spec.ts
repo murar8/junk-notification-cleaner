@@ -64,8 +64,8 @@ import { messageTray } from "resource:///org/gnome/shell/ui/main.js";
 
 const APP_ID = "com.app.test";
 
-function makeApp(id: string = APP_ID) {
-  return { id } as Shell.App;
+function makeApp(id: string = APP_ID, name = "Test App") {
+  return { id, get_name: () => name } as unknown as Shell.App;
 }
 
 function makeSource(overrides: Partial<Source> = {}, policyId = APP_ID) {
@@ -255,20 +255,28 @@ it("should skip transient notifications", () => {
   expect(persistent.destroy).toHaveBeenCalledTimes(1);
 });
 
-it("should skip sources whose policy is not a NotificationApplicationPolicy", () => {
-  const notification = {
-    destroy: vi.fn(),
-  } as Partial<Notification> as Notification;
-  const source = {
-    title: "Test",
-    notifications: [notification],
-    policy: { id: APP_ID },
-  } as unknown as Source;
-  const onFocusWindow = setupFocus({ sources: [source] });
-  onFocusWindow(focusWindowArg);
+it.each([
+  { name: "clear", title: "Test App", appName: "Test App", called: 1 },
+  { name: "skip", title: "Other", appName: "Test App", called: 0 },
+  { name: "skip", title: "", appName: "", called: 0 },
+])(
+  "should $name non-app-policy sources based on title matching the app name",
+  ({ title, appName, called }) => {
+    windowTracker.get_window_app.mockReturnValue(makeApp(APP_ID, appName));
+    const notification = {
+      destroy: vi.fn(),
+    } as Partial<Notification> as Notification;
+    const source = {
+      title,
+      notifications: [notification],
+      policy: { id: "generic" },
+    } as unknown as Source;
+    const onFocusWindow = setupFocus({ sources: [source] });
+    onFocusWindow(focusWindowArg);
 
-  expect(notification.destroy).not.toHaveBeenCalled();
-});
+    expect(notification.destroy).toHaveBeenCalledTimes(called);
+  },
+);
 
 it("should bail out and log when no app is associated with the window", () => {
   windowTracker.get_window_app.mockReturnValueOnce(null);

@@ -94,6 +94,7 @@ export default class JunkNotificationCleaner extends Extension {
     // but NotificationApplicationPolicy.id strips the ".desktop" suffix.
     const appId = app.id.replace(/\.desktop$/, "");
 
+    const appName = app.get_name();
     for (const source of Main.messageTray.getSources()) {
       const sourceLabel = getSourceLabel(source);
       for (const notification of [...source.notifications]) {
@@ -105,12 +106,15 @@ export default class JunkNotificationCleaner extends Extension {
           `${prefix}: found ${kind} notification${suffix}`,
         );
         if (notification.isTransient) continue;
-        // Only sources tied to a desktop app expose an app id; system sources
-        // (NotificationGenericPolicy) intentionally don't match any window.
-        if (
-          source.policy instanceof NotificationApplicationPolicy &&
-          source.policy.id === appId
-        ) {
+        // Fallback for generic-policy sources (libnotify clients that don't
+        // send a desktop-entry hint, e.g. Slack channel messages): both
+        // source.title and app.get_name() resolve to the .desktop file's Name=
+        // field, so equality is an identity check, not a heuristic.
+        const matches =
+          source.policy instanceof NotificationApplicationPolicy
+            ? source.policy.id === appId
+            : Boolean(appName) && source.title === appName;
+        if (matches) {
           notification.destroy();
           this.log(LogLevel.INFO, `${prefix}: removed notification${suffix}`);
         }
