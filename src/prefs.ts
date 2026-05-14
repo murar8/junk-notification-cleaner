@@ -1,18 +1,18 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
+import GioUnix from "gi://GioUnix";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 import type { LogLevel } from "./extension.js";
 
 const LOG_LEVELS: LogLevel[] = ["debug", "info", "warn", "error"] as LogLevel[];
 
-function isValidRegex(pattern: string): boolean {
-  try {
-    new RegExp(pattern);
-    return true;
-  } catch {
-    return false;
-  }
+function getAppId(app: GioUnix.DesktopAppInfo): string {
+  return (app.get_id() ?? "").replace(/\.desktop$/, "");
+}
+
+function lookupApp(appId: string): GioUnix.DesktopAppInfo | null {
+  return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
 }
 
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
@@ -90,127 +90,167 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     debugGroup.add(logLevelRow);
 
     const excludedGroup = new Adw.PreferencesGroup();
-    excludedGroup.set_title("Excluded WM Classes");
+    excludedGroup.set_title("Excluded Applications");
     excludedGroup.set_description(
-      [
-        "Window Manager Classes whose notifications will not be automatically deleted.",
-        "Will be matched against the wm_class property of the window, supports ECMAScript regular expressions.",
-      ].join("\n"),
+      "Applications whose notifications will not be automatically deleted.",
     );
-    page.add(excludedGroup);
 
-    const excludedBox = new Gtk.Box({
-      orientation: Gtk.Orientation.VERTICAL,
-      margin_top: 8,
-      margin_bottom: 8,
-      margin_start: 8,
-      margin_end: 8,
-      spacing: 8,
+    const addButton = new Gtk.Button({
+      icon_name: "list-add-symbolic",
+      tooltip_text: "Add application",
+      css_classes: ["flat"],
+      valign: Gtk.Align.CENTER,
     });
-
-    const excludedApps = settings.get_strv("excluded-apps");
+    excludedGroup.set_header_suffix(addButton);
+    page.add(excludedGroup);
 
     const listBox = new Gtk.ListBox({
       selection_mode: Gtk.SelectionMode.NONE,
       css_classes: ["boxed-list"],
     });
-    excludedBox.append(listBox);
+    excludedGroup.add(listBox);
 
-    for (const app of excludedApps) {
-      this.addExcludedAppRow(app, listBox, settings);
+    const placeholder = new Gtk.Label({
+      label: "No excluded applications.",
+      css_classes: ["dim-label"],
+      margin_top: 12,
+      margin_bottom: 12,
+    });
+    listBox.set_placeholder(placeholder);
+
+    for (const appId of settings.get_strv("excluded-apps")) {
+      this.addExcludedAppRow(appId, listBox, settings);
     }
 
-    const addBox = new Gtk.Box({
-      orientation: Gtk.Orientation.HORIZONTAL,
-      spacing: 8,
-      margin_top: 8,
-    });
-
-    const entry = new Gtk.Entry({
-      placeholder_text: "Enter WM Class regex (e.g. .*firefox.*)",
-      hexpand: true,
-    });
-
-    const errorLabel = new Gtk.Label({
-      label: "Invalid regular expression",
-      css_classes: ["error"],
-      xalign: 0,
-      visible: false,
-    });
-
-    const addButton = new Gtk.Button({
-      label: "Add",
-      css_classes: ["suggested-action"],
-    });
-
-    entry.connect("changed", () => {
-      entry.remove_css_class("error");
-      errorLabel.set_visible(false);
-    });
-
     addButton.connect("clicked", () => {
-      const text = entry.get_text().trim();
-      if (!text) return;
-      if (!isValidRegex(text)) {
-        entry.add_css_class("error");
-        errorLabel.set_visible(true);
-      } else {
-        entry.remove_css_class("error");
-        errorLabel.set_visible(false);
-        const currentApps = settings.get_strv("excluded-apps");
-        if (currentApps.includes(text)) return;
-        settings.set_strv("excluded-apps", [...currentApps, text]);
-        this.addExcludedAppRow(text, listBox, settings);
-        entry.set_text("");
-      }
+      this.openAppSelector(
+        addButton.get_root() as Gtk.Window | null,
+        listBox,
+        settings,
+      );
     });
-
-    addBox.append(entry);
-    addBox.append(addButton);
-
-    excludedBox.append(addBox);
-    excludedBox.append(errorLabel);
-    excludedGroup.add(excludedBox);
 
     return page;
   }
 
-  addExcludedAppRow(
-    app: string,
+  openAppSelector(
+    parent: Gtk.Window | null,
     listBox: Gtk.ListBox,
     settings: Gio.Settings,
   ): void {
-    const row = new Gtk.ListBoxRow();
-    const box = new Gtk.Box({
-      orientation: Gtk.Orientation.HORIZONTAL,
-      spacing: 8,
+    const excluded = new Set(settings.get_strv("excluded-apps"));
+    const apps = (Gio.AppInfo.get_all() as GioUnix.DesktopAppInfo[])
+      .filter((a) => {
+        const id = getAppId(a);
+        return a.should_show() && id !== "" && !excluded.has(id);
+      })
+      .sort((a, b) => {
+        return a.get_name().localeCompare(b.get_name());
+      });
+
+    const window = new Adw.Window({
+      title: "Add Excluded Application",
+      modal: true,
+      default_width: 420,
+      default_height: 520,
+    });
+    if (parent) window.set_transient_for(parent);
+
+    const search = new Gtk.SearchEntry({
+      placeholder_text: "Search applications",
+      hexpand: true,
+    });
+
+    const headerBar = new Adw.HeaderBar();
+    headerBar.set_title_widget(search);
+
+    const appList = new Gtk.ListBox({
+      selection_mode: Gtk.SelectionMode.NONE,
+      css_classes: ["boxed-list"],
       margin_top: 8,
       margin_bottom: 8,
       margin_start: 8,
       margin_end: 8,
     });
 
-    const label = new Gtk.Label({
-      label: app,
-      hexpand: true,
-      xalign: 0,
+    let query = "";
+    appList.set_filter_func((row) => {
+      if (query === "") return true;
+      const actionRow = row as Adw.ActionRow;
+      const title = actionRow.get_title().toLowerCase();
+      const subtitle = (actionRow.get_subtitle() ?? "").toLowerCase();
+      return title.includes(query) || subtitle.includes(query);
     });
+
+    search.connect("search-changed", () => {
+      query = search.get_text().toLowerCase().trim();
+      appList.invalidate_filter();
+    });
+
+    for (const app of apps) {
+      const appId = getAppId(app);
+      const row = new Adw.ActionRow({
+        title: app.get_name(),
+        subtitle: appId,
+        activatable: true,
+      });
+      const icon = app.get_icon();
+      if (icon) {
+        const image = Gtk.Image.new_from_gicon(icon);
+        image.set_pixel_size(32);
+        row.add_prefix(image);
+      }
+      row.connect("activated", () => {
+        const current = settings.get_strv("excluded-apps");
+        if (!current.includes(appId)) {
+          settings.set_strv("excluded-apps", [...current, appId]);
+          this.addExcludedAppRow(appId, listBox, settings);
+        }
+        window.close();
+      });
+      appList.append(row);
+    }
+
+    const toolbarView = new Adw.ToolbarView();
+    toolbarView.add_top_bar(headerBar);
+    toolbarView.set_content(new Gtk.ScrolledWindow({ child: appList }));
+    window.set_content(toolbarView);
+    window.present();
+  }
+
+  addExcludedAppRow(
+    appId: string,
+    listBox: Gtk.ListBox,
+    settings: Gio.Settings,
+  ): void {
+    const app = lookupApp(appId);
+    const row = new Adw.ActionRow({
+      title: app?.get_name() ?? appId,
+      subtitle: appId,
+    });
+    const icon = app?.get_icon();
+    if (icon) {
+      const image = Gtk.Image.new_from_gicon(icon);
+      image.set_pixel_size(32);
+      row.add_prefix(image);
+    }
 
     const removeButton = new Gtk.Button({
       icon_name: "user-trash-symbolic",
       tooltip_text: "Remove",
+      css_classes: ["flat"],
+      valign: Gtk.Align.CENTER,
     });
-
     removeButton.connect("clicked", () => {
-      const currentApps = settings.get_strv("excluded-apps");
-      const newApps = currentApps.filter((a) => a !== app);
-      settings.set_strv("excluded-apps", newApps);
+      const current = settings.get_strv("excluded-apps");
+      settings.set_strv(
+        "excluded-apps",
+        current.filter((id) => id !== appId),
+      );
       listBox.remove(row);
     });
+    row.add_suffix(removeButton);
 
-    box.append(label);
-    box.append(removeButton);
-    row.set_child(box);
     listBox.append(row);
   }
 }

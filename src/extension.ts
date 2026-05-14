@@ -25,7 +25,6 @@ function getObjectLabel(name: string, values: Record<string, string | null>) {
 function getWindowLabel(window: Meta.Window, app?: Shell.App | null) {
   return getObjectLabel("Window", {
     Title: window.title,
-    WMClass: window.wmClass,
     AppId: app?.id ?? null,
   });
 }
@@ -75,24 +74,15 @@ export default class JunkNotificationCleaner extends Extension {
       return;
     }
 
-    const excludedApps = settings.get_strv("excluded-apps");
-    for (const pattern of excludedApps) {
-      let regex: RegExp;
-      try {
-        regex = new RegExp(pattern);
-      } catch {
-        this.log(LogLevel.WARN, `${windowLabel}: invalid regex '${pattern}'`);
-        continue;
-      }
-      if (window.wmClass !== null && regex.test(window.wmClass)) {
-        this.log(LogLevel.DEBUG, `${windowLabel}: excluded by '${pattern}'`);
-        return;
-      }
-    }
-
     // WindowTracker returns the desktop file id (e.g. "com.foo.desktop"),
     // but NotificationApplicationPolicy.id strips the ".desktop" suffix.
     const appId = app.id.replace(/\.desktop$/, "");
+
+    const excludedApps = settings.get_strv("excluded-apps");
+    if (excludedApps.includes(appId)) {
+      this.log(LogLevel.DEBUG, `${windowLabel}: excluded by app id '${appId}'`);
+      return;
+    }
 
     const appName = app.get_name();
     for (const source of Main.messageTray.getSources()) {

@@ -154,37 +154,28 @@ describe(JunkNotificationCleaner.prototype.disable.name, () => {
 });
 
 it.each([
-  {
-    wmClass: "com.app.test",
-    excludedApps: [],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test1", "\\com\\.app\\.tes$"],
-  },
-])(
-  "should clear notifications for app on focus",
-  ({ wmClass, excludedApps }) => {
-    const notification = {
-      destroy: vi.fn(),
-    } as Partial<Notification> as Notification;
-    const source = makeSource({ title: "Test", notifications: [notification] });
-    const onFocusWindow = setupFocus({ excludedApps, sources: [source] });
-    onFocusWindow({
-      focusWindow: { title: "Test", wmClass } as Meta.Window,
-    });
+  { excludedApps: [] },
+  { excludedApps: ["com.app.other", "com.app.test2"] },
+])("should clear notifications for app on focus", ({ excludedApps }) => {
+  const notification = {
+    destroy: vi.fn(),
+  } as Partial<Notification> as Notification;
+  const source = makeSource({ title: "Test", notifications: [notification] });
+  const onFocusWindow = setupFocus({ excludedApps, sources: [source] });
+  onFocusWindow({
+    focusWindow: { title: "Test", wmClass: "com.app.test" } as Meta.Window,
+  });
 
-    expect(notification.destroy).toHaveBeenCalledTimes(1);
-    expect(messageTray.getSources).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenNthCalledWith(
-      1,
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', AppId: '${APP_ID}'): received focus`,
-    );
-    expect(log).toHaveBeenLastCalledWith(
-      `[uuid][info] Window(Title: 'Test', WMClass: '${wmClass}', AppId: '${APP_ID}'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification`,
-    );
-  },
-);
+  expect(notification.destroy).toHaveBeenCalledTimes(1);
+  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
+  expect(log).toHaveBeenNthCalledWith(
+    1,
+    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}'): received focus`,
+  );
+  expect(log).toHaveBeenLastCalledWith(
+    `[uuid][info] Window(Title: 'Test', AppId: '${APP_ID}'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification`,
+  );
+});
 
 it("should clear notifications for app on close", () => {
   const notification = {
@@ -290,64 +281,27 @@ it("should bail out and log when no app is associated with the window", () => {
 });
 
 it.each([
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com.app.test", "com.app.other"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["com\\.app\\.test"],
-  },
-  {
-    wmClass: "com.app.test",
-    excludedApps: ["\\w+\\.\\w+\\.\\w+"],
-  },
-  {
-    wmClass: "jesus.christ",
-    excludedApps: ["^(jesus|christ)\\.(jesus|christ)$"],
-  },
-])(
-  "should not clear notifications for excluded apps",
-  ({ wmClass, excludedApps }) => {
-    const onFocusWindow = setupFocus({ excludedApps });
-    onFocusWindow({
-      focusWindow: { title: "Test", wmClass } as Meta.Window,
-    });
-
-    expect(messageTray.getSources).not.toHaveBeenCalled();
-    expect(log).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenLastCalledWith(
-      `[uuid][debug] Window(Title: 'Test', WMClass: '${wmClass}', AppId: '${APP_ID}'): excluded by '${excludedApps[0]}'`,
-    );
-  },
-);
-
-it("should log warning and continue for invalid excluded app regex", () => {
-  const onFocusWindow = setupFocus({
-    excludedApps: ["[invalid", "com\\.app\\.test"],
-  });
+  { excludedApps: [APP_ID] },
+  { excludedApps: [APP_ID, "com.app.other"] },
+  { excludedApps: ["com.app.other", APP_ID] },
+])("should not clear notifications for excluded apps", ({ excludedApps }) => {
+  const onFocusWindow = setupFocus({ excludedApps });
   onFocusWindow({
     focusWindow: { title: "Test", wmClass: "com.app.test" } as Meta.Window,
   });
 
   expect(messageTray.getSources).not.toHaveBeenCalled();
-  expect(log).toHaveBeenNthCalledWith(
-    2,
-    `[uuid][warn] Window(Title: 'Test', WMClass: 'com.app.test', AppId: '${APP_ID}'): invalid regex '[invalid'`,
+  expect(log).toHaveBeenLastCalledWith(
+    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}'): excluded by app id '${APP_ID}'`,
   );
 });
 
-it("should treat null wmClass as no match against excluded apps", () => {
-  const onFocusWindow = setupFocus({ excludedApps: ["com\\.app\\.test"] });
-  onFocusWindow({
-    focusWindow: { title: "Test", wmClass: null } as unknown as Meta.Window,
-  });
+it("should match excluded apps after stripping .desktop suffix from app id", () => {
+  windowTracker.get_window_app.mockReturnValue(makeApp(`${APP_ID}.desktop`));
+  const onFocusWindow = setupFocus({ excludedApps: [APP_ID] });
+  onFocusWindow(focusWindowArg);
 
-  expect(messageTray.getSources).toHaveBeenCalledTimes(1);
+  expect(messageTray.getSources).not.toHaveBeenCalled();
 });
 
 it("should not clear notifications for app on focus if not enabled", () => {
