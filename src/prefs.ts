@@ -9,14 +9,14 @@ import type { LogLevel } from "./extension.js";
 
 type DeleteTriggerKey = "delete-on-focus" | "delete-on-close";
 
-class PreferencesModel {
-  static readonly LOG_LEVELS = [
-    "debug",
-    "info",
-    "warn",
-    "error",
-  ] as const satisfies `${LogLevel}`[];
+const LOG_LEVELS = [
+  "debug",
+  "info",
+  "warn",
+  "error",
+] as const satisfies `${LogLevel}`[];
 
+class PreferencesModel {
   constructor(private settings: Gio.Settings) {}
 
   bindDeleteTrigger(
@@ -50,17 +50,14 @@ class PreferencesModel {
 
   getLogLevelIndex(): number {
     const current = this.settings.get_string("log-level") as `${LogLevel}`;
-    const idx = PreferencesModel.LOG_LEVELS.indexOf(current);
+    const idx = LOG_LEVELS.indexOf(current);
     if (idx >= 0) return idx;
     logError(`Invalid log level in settings: ${current}, setting to "info".`);
-    return PreferencesModel.LOG_LEVELS.indexOf("info");
+    return LOG_LEVELS.indexOf("info");
   }
 
   setLogLevelIndex(idx: number): void {
-    this.settings.set_string(
-      "log-level",
-      PreferencesModel.LOG_LEVELS[idx] ?? "info",
-    );
+    this.settings.set_string("log-level", LOG_LEVELS[idx] ?? "info");
   }
 
   onLogLevelChanged(handler: () => void): number {
@@ -69,18 +66,6 @@ class PreferencesModel {
 
   disconnect(handlerId: number): void {
     this.settings.disconnect(handlerId);
-  }
-
-  getSelectableApps(): Gio.AppInfo[] {
-    const excluded = new Set(this.getExcludedApps());
-    return Gio.AppInfo.get_all()
-      .filter((a) => {
-        const id = getAppId(a);
-        return a.should_show() && id !== "" && !excluded.has(id);
-      })
-      .sort((a, b) => {
-        return a.get_name().localeCompare(b.get_name());
-      });
   }
 }
 
@@ -95,8 +80,69 @@ function lookupApp(appId: string): GioUnix.DesktopAppInfo | null {
 function rowMatchesQuery(row: Adw.ActionRow, query: string): boolean {
   if (query === "") return true;
   const title = row.get_title().toLowerCase();
-  const subtitle = (row.get_subtitle() ?? "").toLowerCase();
+  const subtitle = row.get_subtitle()?.toLowerCase() ?? "";
   return title.includes(query) || subtitle.includes(query);
+}
+
+function buildSearchHeader(): {
+  headerBar: Adw.HeaderBar;
+  search: Gtk.SearchEntry;
+} {
+  const search = new Gtk.SearchEntry({
+    placeholder_text: "Search applications",
+    hexpand: true,
+  });
+  const headerBar = new Adw.HeaderBar();
+  headerBar.set_title_widget(search);
+  return { headerBar, search };
+}
+
+function wireSearchFilter(appList: Gtk.ListBox, search: Gtk.SearchEntry): void {
+  appList.set_filter_func((row) =>
+    rowMatchesQuery(
+      row as Adw.ActionRow,
+      search.get_text().toLowerCase().trim(),
+    ),
+  );
+  search.connect("search-changed", () => {
+    appList.invalidate_filter();
+  });
+}
+
+function addCloseOnEscape(window: Gtk.Window): void {
+  const controller = new Gtk.ShortcutController();
+  controller.add_shortcut(
+    new Gtk.Shortcut({
+      trigger: Gtk.ShortcutTrigger.parse_string("Escape"),
+      action: Gtk.ShortcutAction.parse_string("action(window.close)"),
+    }),
+  );
+  window.add_controller(controller);
+}
+
+function buildSelectableAppList(
+  apps: Gio.AppInfo[],
+  onActivated: (appId: string) => void,
+): Gtk.ListBox {
+  const appList = new Gtk.ListBox({
+    selection_mode: Gtk.SelectionMode.NONE,
+    css_classes: ["boxed-list"],
+    margin_top: 8,
+    margin_bottom: 8,
+    margin_start: 8,
+    margin_end: 8,
+  });
+
+  for (const app of apps) {
+    const appId = getAppId(app);
+    const row = buildAppRow(app, appId, { activatable: true });
+    appList.append(row);
+    row.connect("activated", () => {
+      onActivated(appId);
+    });
+  }
+
+  return appList;
 }
 
 function buildAppRow(
@@ -179,25 +225,36 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
         "Set the logging level for troubleshooting notification matching.",
     });
     const dropdown = new Gtk.DropDown({
-      model: Gtk.StringList.new([...PreferencesModel.LOG_LEVELS]),
+      model: Gtk.StringList.new([...LOG_LEVELS]),
       valign: Gtk.Align.CENTER,
     });
 
-    const syncDropdown = () => {
+    this.bindLogLevelDropdown(dropdown);
+
+    row.add_suffix(dropdown);
+    group.add(row);
+    return group;
+  }
+
+  private getSelectableApps(): Gio.AppInfo[] {
+    const excluded = new Set(this.model.getExcludedApps());
+    return Gio.AppInfo.get_all()
+      .filter((a) => a.should_show() && !excluded.has(getAppId(a)))
+      .sort((a, b) => a.get_name().localeCompare(b.get_name()));
+  }
+
+  private bindLogLevelDropdown(dropdown: Gtk.DropDown): void {
+    const sync = () => {
       dropdown.set_selected(this.model.getLogLevelIndex());
     };
-    syncDropdown();
-    const changedId = this.model.onLogLevelChanged(syncDropdown);
+    sync();
+    const changedId = this.model.onLogLevelChanged(sync);
     dropdown.connect("notify::selected", (dd: Gtk.DropDown) => {
       this.model.setLogLevelIndex(dd.get_selected());
     });
     dropdown.connect("destroy", () => {
       this.model.disconnect(changedId);
     });
-
-    row.add_suffix(dropdown);
-    group.add(row);
-    return group;
   }
 
   private buildExcludedAppsGroup(): Adw.PreferencesGroup {
@@ -276,28 +333,6 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     return row;
   }
 
-  private buildSelectableAppList(
-    onActivated: (appId: string) => unknown,
-  ): Gtk.ListBox {
-    const appList = new Gtk.ListBox({
-      selection_mode: Gtk.SelectionMode.NONE,
-      css_classes: ["boxed-list"],
-      margin_top: 8,
-      margin_bottom: 8,
-      margin_start: 8,
-      margin_end: 8,
-    });
-
-    for (const app of this.model.getSelectableApps()) {
-      const appId = getAppId(app);
-      const row = buildAppRow(app, appId, { activatable: true });
-      row.connect("activated", () => onActivated(appId));
-      appList.append(row);
-    }
-
-    return appList;
-  }
-
   private openAppSelector(
     parent: Gtk.Window | null,
     onSelected: (appId: string) => void,
@@ -310,36 +345,14 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     });
     if (parent) window.set_transient_for(parent);
 
-    const search = new Gtk.SearchEntry({
-      placeholder_text: "Search applications",
-      hexpand: true,
-    });
-    const headerBar = new Adw.HeaderBar();
-    headerBar.set_title_widget(search);
+    const { headerBar, search } = buildSearchHeader();
 
-    const appList = this.buildSelectableAppList((appId) => {
+    const appList = buildSelectableAppList(this.getSelectableApps(), (appId) => {
       onSelected(appId);
       window.close();
     });
-
-    appList.set_filter_func((row) =>
-      rowMatchesQuery(
-        row as Adw.ActionRow,
-        search.get_text().toLowerCase().trim(),
-      ),
-    );
-    search.connect("search-changed", () => {
-      appList.invalidate_filter();
-    });
-
-    const escController = new Gtk.ShortcutController();
-    escController.add_shortcut(
-      new Gtk.Shortcut({
-        trigger: Gtk.ShortcutTrigger.parse_string("Escape"),
-        action: Gtk.ShortcutAction.parse_string("action(window.close)"),
-      }),
-    );
-    window.add_controller(escController);
+    wireSearchFilter(appList, search);
+    addCloseOnEscape(window);
 
     const toolbarView = new Adw.ToolbarView();
     toolbarView.add_top_bar(headerBar);
