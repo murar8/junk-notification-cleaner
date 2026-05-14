@@ -14,7 +14,7 @@
     <key name="excluded-apps" type="as">
       <default>[]</default>
       <summary>Excluded applications</summary>
-      <description>List of application regex patterns for which notifications should not be automatically deleted.</description>
+      <description>List of application ids (.desktop file names without the suffix) for which notifications should not be automatically deleted.</description>
     </key>
     <key name="log-level" type="s">
       <default>'info'</default>
