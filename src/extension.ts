@@ -39,6 +39,23 @@ function getSourceLabel(source: { title: string; policy: unknown }) {
   });
 }
 
+// Fallback for generic-policy sources (libnotify clients that don't send a
+// desktop-entry hint, e.g. Slack channel messages): match by source.title
+// against the app's display name. Clients are free to set source.title to
+// anything, so this is a heuristic and may yield false positives for apps
+// whose notifications carry per-conversation titles.
+function sourceMatchesApp(
+  source: { title: string; policy: unknown },
+  appId: string,
+  appName: string,
+) {
+  if (source.policy instanceof NotificationApplicationPolicy) {
+    return source.policy.id === appId;
+  } else {
+    return Boolean(appName) && source.title === appName;
+  }
+}
+
 export default class JunkNotificationCleaner extends Extension {
   private focusListenerId: number | null = null;
   private closeListenerId: number | null = null;
@@ -88,26 +105,17 @@ export default class JunkNotificationCleaner extends Extension {
     for (const source of Main.messageTray.getSources()) {
       const sourceLabel = getSourceLabel(source);
       for (const notification of [...source.notifications]) {
-        const prefix = `${windowLabel}: ${sourceLabel}`;
-        const suffix = notification.title ? `: ${notification.title}` : "";
+        const label = `${windowLabel}: ${sourceLabel}`;
+        const title = notification.title ?? "(untitled notification)";
         const kind = notification.isTransient ? "transient" : "persistent";
         this.log(
           LogLevel.DEBUG,
-          `${prefix}: found ${kind} notification${suffix}`,
+          `${label}: found ${kind} notification: ${title}`,
         );
         if (notification.isTransient) continue;
-        // Fallback for generic-policy sources (libnotify clients that don't
-        // send a desktop-entry hint, e.g. Slack channel messages): match by
-        // source.title against the app's display name. Clients are free to set
-        // source.title to anything, so this is a heuristic and may yield false
-        // positives for apps whose notifications carry per-conversation titles.
-        const matches =
-          source.policy instanceof NotificationApplicationPolicy
-            ? source.policy.id === appId
-            : Boolean(appName) && source.title === appName;
-        if (matches) {
+        if (sourceMatchesApp(source, appId, appName)) {
           notification.destroy();
-          this.log(LogLevel.INFO, `${prefix}: removed notification${suffix}`);
+          this.log(LogLevel.INFO, `${label}: removed notification: ${title}`);
         }
       }
     }

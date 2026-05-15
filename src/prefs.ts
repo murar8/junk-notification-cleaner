@@ -16,151 +16,6 @@ const LOG_LEVELS = [
   "error",
 ] as const satisfies `${LogLevel}`[];
 
-class PreferencesModel {
-  constructor(private settings: Gio.Settings) {}
-
-  bindDeleteTrigger(
-    key: DeleteTriggerKey,
-    target: GObject.Object,
-    property: string,
-  ): void {
-    this.settings.bind(key, target, property, Gio.SettingsBindFlags.DEFAULT);
-  }
-
-  getExcludedApps(): string[] {
-    return this.settings.get_strv("excluded-apps");
-  }
-
-  addExcludedApp(appId: string): void {
-    const current = this.getExcludedApps();
-    if (current.includes(appId)) return;
-    this.settings.set_strv("excluded-apps", [...current, appId]);
-  }
-
-  removeExcludedApp(appId: string): void {
-    this.settings.set_strv(
-      "excluded-apps",
-      this.getExcludedApps().filter((id) => id !== appId),
-    );
-  }
-
-  onExcludedAppsChanged(handler: () => void): number {
-    return this.settings.connect("changed::excluded-apps", handler);
-  }
-
-  getLogLevelIndex(): number {
-    const current = this.settings.get_string("log-level") as `${LogLevel}`;
-    const idx = LOG_LEVELS.indexOf(current);
-    if (idx >= 0) return idx;
-    logError(`Invalid log level in settings: ${current}, setting to "info".`);
-    return LOG_LEVELS.indexOf("info");
-  }
-
-  setLogLevelIndex(idx: number): void {
-    this.settings.set_string("log-level", LOG_LEVELS[idx] ?? "info");
-  }
-
-  onLogLevelChanged(handler: () => void): number {
-    return this.settings.connect("changed::log-level", handler);
-  }
-
-  disconnect(handlerId: number): void {
-    this.settings.disconnect(handlerId);
-  }
-}
-
-function getAppId(app: Gio.AppInfo): string {
-  return (app.get_id() ?? "").replace(/\.desktop$/, "");
-}
-
-function lookupApp(appId: string): GioUnix.DesktopAppInfo | null {
-  return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
-}
-
-function rowMatchesQuery(row: Adw.ActionRow, query: string): boolean {
-  if (query === "") return true;
-  const title = row.get_title().toLowerCase();
-  const subtitle = row.get_subtitle()?.toLowerCase() ?? "";
-  return title.includes(query) || subtitle.includes(query);
-}
-
-function buildSearchHeader(): {
-  headerBar: Adw.HeaderBar;
-  search: Gtk.SearchEntry;
-} {
-  const search = new Gtk.SearchEntry({
-    placeholder_text: "Search applications",
-    hexpand: true,
-  });
-  const headerBar = new Adw.HeaderBar();
-  headerBar.set_title_widget(search);
-  return { headerBar, search };
-}
-
-function wireSearchFilter(appList: Gtk.ListBox, search: Gtk.SearchEntry): void {
-  appList.set_filter_func((row) =>
-    rowMatchesQuery(
-      row as Adw.ActionRow,
-      search.get_text().toLowerCase().trim(),
-    ),
-  );
-  search.connect("search-changed", () => {
-    appList.invalidate_filter();
-  });
-}
-
-function addCloseOnEscape(window: Gtk.Window): void {
-  const controller = new Gtk.ShortcutController();
-  controller.add_shortcut(
-    new Gtk.Shortcut({
-      trigger: Gtk.ShortcutTrigger.parse_string("Escape"),
-      action: Gtk.ShortcutAction.parse_string("action(window.close)"),
-    }),
-  );
-  window.add_controller(controller);
-}
-
-function buildSelectableAppList(
-  apps: Gio.AppInfo[],
-  onActivated: (appId: string) => void,
-): Gtk.ListBox {
-  const appList = new Gtk.ListBox({
-    selection_mode: Gtk.SelectionMode.NONE,
-    css_classes: ["boxed-list"],
-    margin_top: 8,
-    margin_bottom: 8,
-    margin_start: 8,
-    margin_end: 8,
-  });
-
-  for (const app of apps) {
-    const appId = getAppId(app);
-    const row = buildAppRow(app, appId, { activatable: true });
-    appList.append(row);
-    row.connect("activated", () => {
-      onActivated(appId);
-    });
-  }
-
-  return appList;
-}
-
-function buildAppRow(
-  app: Gio.AppInfo | null,
-  appId: string,
-  extra: Partial<Adw.ActionRow.ConstructorProps> = {},
-): Adw.ActionRow {
-  const title = app?.get_name() ?? appId;
-  const row = new Adw.ActionRow({ ...extra, title, subtitle: appId });
-  const icon = app?.get_icon();
-  if (icon) {
-    const image = Gtk.Image.new_from_gicon(icon);
-    image.set_pixel_size(32);
-    row.add_prefix(image);
-  }
-  return row;
-}
-
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
   private model!: PreferencesModel;
 
@@ -234,13 +89,6 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     row.add_suffix(dropdown);
     group.add(row);
     return group;
-  }
-
-  private getSelectableApps(): Gio.AppInfo[] {
-    const excluded = new Set(this.model.getExcludedApps());
-    return Gio.AppInfo.get_all()
-      .filter((a) => a.should_show() && !excluded.has(getAppId(a)))
-      .sort((a, b) => a.get_name().localeCompare(b.get_name()));
   }
 
   private bindLogLevelDropdown(dropdown: Gtk.DropDown): void {
@@ -317,7 +165,10 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   }
 
   private buildExcludedAppRow(appId: string): Adw.ActionRow {
-    const row = buildAppRow(lookupApp(appId), appId);
+    const row = buildAppRow(
+      GioUnix.DesktopAppInfo.new(`${appId}.desktop`),
+      appId,
+    );
 
     const removeButton = new Gtk.Button({
       icon_name: "user-trash-symbolic",
@@ -345,12 +196,20 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     });
     if (parent) window.set_transient_for(parent);
 
-    const { headerBar, search } = buildSearchHeader();
-
-    const appList = buildSelectableAppList(this.getSelectableApps(), (appId) => {
-      onSelected(appId);
-      window.close();
+    const search = new Gtk.SearchEntry({
+      placeholder_text: "Search applications",
+      hexpand: true,
     });
+    const headerBar = new Adw.HeaderBar();
+    headerBar.set_title_widget(search);
+
+    const appList = buildSelectableAppList(
+      this.getSelectableApps(),
+      (appId) => {
+        onSelected(appId);
+        window.close();
+      },
+    );
     wireSearchFilter(appList, search);
     addCloseOnEscape(window);
 
@@ -360,5 +219,135 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     window.set_content(toolbarView);
     window.present();
     search.grab_focus();
+  }
+
+  private getSelectableApps(): Gio.AppInfo[] {
+    const excluded = new Set(this.model.getExcludedApps());
+    return Gio.AppInfo.get_all()
+      .filter((a) => a.should_show() && !excluded.has(getAppId(a)))
+      .sort((a, b) => a.get_name().localeCompare(b.get_name()));
+  }
+}
+
+function buildSelectableAppList(
+  apps: Gio.AppInfo[],
+  onActivated: (appId: string) => void,
+): Gtk.ListBox {
+  const appList = new Gtk.ListBox({
+    selection_mode: Gtk.SelectionMode.NONE,
+    css_classes: ["boxed-list"],
+    margin_top: 8,
+    margin_bottom: 8,
+    margin_start: 8,
+    margin_end: 8,
+  });
+
+  for (const app of apps) {
+    const appId = getAppId(app);
+    const row = buildAppRow(app, appId, { activatable: true });
+    appList.append(row);
+    row.connect("activated", () => {
+      onActivated(appId);
+    });
+  }
+
+  return appList;
+}
+
+function buildAppRow(
+  app: Gio.AppInfo | null,
+  appId: string,
+  extra: Partial<Adw.ActionRow.ConstructorProps> = {},
+): Adw.ActionRow {
+  const title = app?.get_name() ?? appId;
+  const row = new Adw.ActionRow({ ...extra, title, subtitle: appId });
+  const icon = app?.get_icon();
+  if (icon) {
+    const image = Gtk.Image.new_from_gicon(icon);
+    image.set_pixel_size(32);
+    row.add_prefix(image);
+  }
+  return row;
+}
+
+function wireSearchFilter(appList: Gtk.ListBox, search: Gtk.SearchEntry): void {
+  appList.set_filter_func((row) => {
+    const query = search.get_text().toLowerCase().trim();
+    if (query === "") return true;
+    const actionRow = row as Adw.ActionRow;
+    const title = actionRow.get_title().toLowerCase();
+    const subtitle = actionRow.get_subtitle()?.toLowerCase() ?? "";
+    return title.includes(query) || subtitle.includes(query);
+  });
+  search.connect("search-changed", () => {
+    appList.invalidate_filter();
+  });
+}
+
+function addCloseOnEscape(window: Gtk.Window): void {
+  const controller = new Gtk.ShortcutController();
+  controller.add_shortcut(
+    new Gtk.Shortcut({
+      trigger: Gtk.ShortcutTrigger.parse_string("Escape"),
+      action: Gtk.ShortcutAction.parse_string("action(window.close)"),
+    }),
+  );
+  window.add_controller(controller);
+}
+
+function getAppId(app: Gio.AppInfo): string {
+  return (app.get_id() ?? "").replace(/\.desktop$/, "");
+}
+
+class PreferencesModel {
+  constructor(private settings: Gio.Settings) {}
+
+  bindDeleteTrigger(
+    key: DeleteTriggerKey,
+    target: GObject.Object,
+    property: string,
+  ): void {
+    this.settings.bind(key, target, property, Gio.SettingsBindFlags.DEFAULT);
+  }
+
+  getExcludedApps(): string[] {
+    return this.settings.get_strv("excluded-apps");
+  }
+
+  addExcludedApp(appId: string): void {
+    const current = this.getExcludedApps();
+    if (current.includes(appId)) return;
+    this.settings.set_strv("excluded-apps", [...current, appId]);
+  }
+
+  removeExcludedApp(appId: string): void {
+    this.settings.set_strv(
+      "excluded-apps",
+      this.getExcludedApps().filter((id) => id !== appId),
+    );
+  }
+
+  onExcludedAppsChanged(handler: () => void): number {
+    return this.settings.connect("changed::excluded-apps", handler);
+  }
+
+  getLogLevelIndex(): number {
+    const current = this.settings.get_string("log-level") as `${LogLevel}`;
+    const idx = LOG_LEVELS.indexOf(current);
+    if (idx >= 0) return idx;
+    logError(`Invalid log level in settings: ${current}, setting to "info".`);
+    return LOG_LEVELS.indexOf("info");
+  }
+
+  setLogLevelIndex(idx: number): void {
+    this.settings.set_string("log-level", LOG_LEVELS[idx] ?? "info");
+  }
+
+  onLogLevelChanged(handler: () => void): number {
+    return this.settings.connect("changed::log-level", handler);
+  }
+
+  disconnect(handlerId: number): void {
+    this.settings.disconnect(handlerId);
   }
 }
