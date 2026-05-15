@@ -173,7 +173,7 @@ it.each([
     `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}'): received focus`,
   );
   expect(log).toHaveBeenLastCalledWith(
-    `[uuid][info] Window(Title: 'Test', AppId: '${APP_ID}'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification`,
+    `[uuid][info] Window(Title: 'Test', AppId: '${APP_ID}'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification: (untitled notification)`,
   );
 });
 
