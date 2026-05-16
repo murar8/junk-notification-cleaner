@@ -19,7 +19,7 @@ Object.assign(global, {
 const settings = {
   get_boolean: vi.fn(),
   get_strv: vi.fn(),
-  get_string: vi.fn(),
+  get_enum: vi.fn(),
 };
 
 const windowTracker = {
@@ -78,13 +78,19 @@ interface WindowOverrides {
 function makeWindow(overrides: WindowOverrides = {}): Meta.Window {
   return {
     title: "Test",
+    wmClass: "",
+    gtkApplicationId: null,
     get_sandboxed_app_id: () => null,
     ...overrides,
   } as WindowOverrides as Meta.Window;
 }
 
+type SourceOverrides = Omit<Partial<Source>, "icon"> & {
+  icon?: Source["icon"] | null;
+};
+
 function makeSource(
-  overrides: Partial<Source> = {},
+  overrides: SourceOverrides = {},
   policyId: string | null = APP_ID,
 ) {
   const policy =
@@ -94,7 +100,7 @@ function makeSource(
     notifications: [],
     policy,
     ...overrides,
-  } as Partial<Source> as Source;
+  } as SourceOverrides as Source;
 }
 
 function setupFocus({
@@ -124,7 +130,7 @@ function setupClose({
 let extension: JunkNotificationCleaner;
 
 beforeEach(() => {
-  settings.get_string.mockReturnValue("debug");
+  settings.get_enum.mockReturnValue(0);
   windowTracker.get_window_app.mockReturnValue(makeApp());
   extension = new JunkNotificationCleaner({
     uuid: "uuid",
@@ -190,10 +196,10 @@ it.each([
   expect(messageTray.getSources).toHaveBeenCalledTimes(1);
   expect(log).toHaveBeenNthCalledWith(
     1,
-    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}'): received focus`,
+    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}', WmClass: 'com.app.test'): received focus`,
   );
   expect(log).toHaveBeenLastCalledWith(
-    `[uuid][info] Window(Title: 'Test', AppId: '${APP_ID}'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification: (untitled notification)`,
+    `[uuid][info] Window(Title: 'Test', AppId: '${APP_ID}', WmClass: 'com.app.test'): Source(Title: 'Test', PolicyId: '${APP_ID}'): removed notification: (untitled notification)`,
   );
 });
 
@@ -315,7 +321,7 @@ it.each([
 
   expect(messageTray.getSources).not.toHaveBeenCalled();
   expect(log).toHaveBeenLastCalledWith(
-    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}'): excluded by app id '${APP_ID}'`,
+    `[uuid][debug] Window(Title: 'Test', AppId: '${APP_ID}', WmClass: 'com.app.test'): excluded by app id '${APP_ID}'`,
   );
 });
 
@@ -898,6 +904,50 @@ describe("heuristic match (non-app policy)", () => {
       }),
     ).not.toHaveBeenCalled();
   });
+});
+
+it("does not heuristically match when policy id is present but mismatches", () => {
+  const notification = {
+    destroy: vi.fn(),
+  } as Partial<Notification> as Notification;
+  const source = makeSource(
+    {
+      title: "Slack",
+      icon: stubIcon({ to_string: () => "com.slack.Slack" }),
+      notifications: [notification],
+    },
+    "com.app.other",
+  );
+  const onFocusWindow = setupFocus({ sources: [source] });
+  onFocusWindow({
+    focusWindow: makeWindow({
+      gtkApplicationId: "com.slack.Slack",
+      wmClass: "slack",
+      title: "Slack",
+    }),
+  });
+
+  expect(notification.destroy).not.toHaveBeenCalled();
+});
+
+it("falls back to title when source.icon is null", () => {
+  const notification = {
+    destroy: vi.fn(),
+  } as Partial<Notification> as Notification;
+  const source = makeSource(
+    {
+      title: "Proton Mail Bridge",
+      icon: null,
+      notifications: [notification],
+    },
+    null,
+  );
+  const onFocusWindow = setupFocus({ sources: [source] });
+  onFocusWindow({
+    focusWindow: makeWindow({ title: "Proton Mail Bridge" }),
+  });
+
+  expect(notification.destroy).toHaveBeenCalledTimes(1);
 });
 
 it("clears notifications when policy id matches even if icon/title do not", () => {

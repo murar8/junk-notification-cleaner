@@ -223,7 +223,9 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   private getSelectableApps(): Gio.AppInfo[] {
     const excluded = new Set(this.model.getExcludedApps());
     return Gio.AppInfo.get_all()
-      .filter((a) => a.should_show() && !excluded.has(getAppId(a)))
+      .filter(
+        (a) => a.should_show() && a.get_id() && !excluded.has(getAppId(a)),
+      )
       .sort((a, b) => a.get_name().localeCompare(b.get_name()));
   }
 }
@@ -337,15 +339,11 @@ class PreferencesModel {
   }
 
   getLogLevelIndex(): number {
-    const current = this.settings.get_string("log-level") as `${LogLevel}`;
-    const idx = LOG_LEVELS.indexOf(current);
-    if (idx >= 0) return idx;
-    logError(`Invalid log level in settings: ${current}, setting to "info".`);
-    return LOG_LEVELS.indexOf("info");
+    return this.settings.get_enum("log-level");
   }
 
   setLogLevelIndex(idx: number): void {
-    this.settings.set_string("log-level", LOG_LEVELS[idx] ?? "info");
+    this.settings.set_enum("log-level", idx);
   }
 
   onLogLevelChanged(handler: () => void): number {
