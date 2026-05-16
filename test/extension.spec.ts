@@ -83,11 +83,16 @@ function makeWindow(overrides: WindowOverrides = {}): Meta.Window {
   } as WindowOverrides as Meta.Window;
 }
 
-function makeSource(overrides: Partial<Source> = {}, policyId = APP_ID) {
+function makeSource(
+  overrides: Partial<Source> = {},
+  policyId: string | null = APP_ID,
+) {
+  const policy =
+    policyId === null ? {} : new MockNotificationApplicationPolicy(policyId);
   return {
     title: "Test",
     notifications: [],
-    policy: new MockNotificationApplicationPolicy(policyId),
+    policy,
     ...overrides,
   } as Partial<Source> as Source;
 }
@@ -278,7 +283,7 @@ it.each([
     } as Partial<Notification> as Notification;
     const source = makeSource(
       { title: sourceTitle, notifications: [notification] },
-      "generic",
+      null,
     );
     const onFocusWindow = setupFocus({ sources: [source] });
     onFocusWindow({ focusWindow: makeWindow({ title: windowTitle }) });
@@ -370,7 +375,7 @@ function runHeuristic({ window, source }: HeuristicCase) {
   } as Partial<Notification> as Notification;
   const src = makeSource(
     { ...source, icon: stubIcon(source.icon), notifications: [notification] },
-    "generic",
+    null,
   );
   const onFocusWindow = setupFocus({ sources: [src] });
   onFocusWindow({ focusWindow: makeWindow(window) });
@@ -857,4 +862,64 @@ describe("heuristic match (non-app policy)", () => {
   ])("does not match: $description", (kase) => {
     expect(runHeuristic(kase)).not.toHaveBeenCalled();
   });
+
+  it("does not fall back to title when icon is set but does not match", () => {
+    expect(
+      runHeuristic({
+        description: "icon present, title would match if not gated",
+        window: {
+          gtkApplicationId: null,
+          get_sandboxed_app_id: () => null,
+          wmClass: "other",
+          title: "Slack",
+        },
+        source: {
+          title: "Slack",
+          icon: { to_string: () => "com.different.App" },
+        },
+      }),
+    ).not.toHaveBeenCalled();
+  });
+
+  it("does not match malformed snap icon paths", () => {
+    expect(
+      runHeuristic({
+        description: "snap path without trailing slash",
+        window: {
+          gtkApplicationId: null,
+          get_sandboxed_app_id: () => "firefox_firefox",
+          wmClass: "firefox",
+          title: "Firefox",
+        },
+        source: {
+          title: "Firefox",
+          icon: { to_string: () => "/snap/firefox" },
+        },
+      }),
+    ).not.toHaveBeenCalled();
+  });
+});
+
+it("clears notifications when policy id matches even if icon/title do not", () => {
+  const notification = {
+    destroy: vi.fn(),
+  } as Partial<Notification> as Notification;
+  const source = makeSource(
+    {
+      title: "Mismatched Title",
+      icon: stubIcon({ to_string: () => "com.different.App" }),
+      notifications: [notification],
+    },
+    APP_ID,
+  );
+  const onFocusWindow = setupFocus({ sources: [source] });
+  onFocusWindow({
+    focusWindow: makeWindow({
+      gtkApplicationId: "unrelated",
+      wmClass: "unrelated",
+      title: "unrelated",
+    }),
+  });
+
+  expect(notification.destroy).toHaveBeenCalledTimes(1);
 });
