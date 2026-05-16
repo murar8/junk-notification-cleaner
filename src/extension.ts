@@ -1,5 +1,6 @@
 import type Gio from "gi://Gio";
 import type Meta from "gi://Meta";
+import type { Source } from "@girs/gnome-shell/ui/messageTray";
 
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
@@ -39,21 +40,68 @@ function getSourceLabel(source: { title: string; policy: unknown }) {
   });
 }
 
-// Fallback for generic-policy sources (libnotify clients that don't send a
-// desktop-entry hint, e.g. Slack channel messages): match by source.title
-// against the app's display name. Clients are free to set source.title to
-// anything, so this is a heuristic and may yield false positives for apps
-// whose notifications carry per-conversation titles.
+type MatchSource = Omit<Source, "icon"> & { icon: Source["icon"] | null };
+type MatchWindow = Omit<Meta.Window, "title"> & { title: string | null };
+
+function matchByPolicyId(source: MatchSource, appId: string) {
+  return (
+    source.policy instanceof NotificationApplicationPolicy &&
+    source.policy.id === appId
+  );
+}
+
+// libnotify clients without a desktop-entry hint set source.icon to an
+// app-identifying string. Compare it against window-side identifiers.
+function matchByIcon(source: MatchSource, window: MatchWindow) {
+  const icon = source.icon?.to_string();
+  if (!icon) return false;
+  return (
+    // Ghostty deb: icon matches GTK app id (com.mitchellh.ghostty)
+    icon === window.gtkApplicationId ||
+    // Slack Flatpak: icon matches sandboxed app id (com.slack.Slack)
+    icon === window.get_sandboxed_app_id() ||
+    // Firefox deb: icon matches window manager class (firefox)
+    icon === window.wmClass
+  );
+}
+
+// Snap apps have icon paths like /snap/firefox/6638/default256.png; their
+// sandboxed ids use format appname_appname (firefox_firefox).
+function matchBySnapIcon(source: MatchSource, window: MatchWindow) {
+  const regex = /^\/snap\/([^/]+)\//;
+  const snap = source.icon?.to_string()?.match(regex)?.at(1);
+  if (!snap) return false;
+  return window.get_sandboxed_app_id() === `${snap}_${snap}`;
+}
+
+function matchByTitle({ title }: MatchSource, window: MatchWindow) {
+  if (!title) return false;
+  return (
+    // Proton Mail Bridge: title matches window title
+    title === window.title ||
+    // Extract app name from composite title (foo.ts - project - Cursor)
+    title === window.title?.match(/^.+ (-|\|) (.+)$/)?.[2] ||
+    // Thunderbird: title matches window manager class (thunderbird)
+    title === window.wmClass ||
+    // Discord snap: title duplicated matches sandboxed app id (discord_discord)
+    `${title}_${title}` === window.get_sandboxed_app_id()
+  );
+}
+
+// Sources backed by NotificationApplicationPolicy carry the desktop-entry id;
+// otherwise fall back to empirical icon/title heuristics against the focused
+// window (covers libnotify clients without a desktop-entry hint).
 function sourceMatchesApp(
-  source: { title: string; policy: unknown },
+  source: MatchSource,
+  window: MatchWindow,
   appId: string,
-  appName: string,
 ) {
-  if (source.policy instanceof NotificationApplicationPolicy) {
-    return source.policy.id === appId;
-  } else {
-    return Boolean(appName) && source.title === appName;
-  }
+  return (
+    matchByPolicyId(source, appId) ||
+    matchByIcon(source, window) ||
+    matchBySnapIcon(source, window) ||
+    matchByTitle(source, window)
+  );
 }
 
 export default class JunkNotificationCleaner extends Extension {
@@ -101,7 +149,6 @@ export default class JunkNotificationCleaner extends Extension {
       return;
     }
 
-    const appName = app.get_name();
     for (const source of Main.messageTray.getSources()) {
       const sourceLabel = getSourceLabel(source);
       for (const notification of [...source.notifications]) {
@@ -113,7 +160,7 @@ export default class JunkNotificationCleaner extends Extension {
           `${label}: found ${kind} notification: ${title}`,
         );
         if (notification.isTransient) continue;
-        if (sourceMatchesApp(source, appId, appName)) {
+        if (sourceMatchesApp(source, window, appId)) {
           notification.destroy();
           this.log(LogLevel.INFO, `${label}: removed notification: ${title}`);
         }

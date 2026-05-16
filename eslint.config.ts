@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 import prettier from "eslint-config-prettier";
@@ -20,6 +21,17 @@ export default defineConfig(
         projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "TSAsExpression > TSUnknownKeyword, TSTypeAssertion > TSUnknownKeyword",
+          message:
+            "Avoid `as unknown` double-casts; widen the source type or add a typed helper instead.",
+        },
+      ],
     },
   },
   {
