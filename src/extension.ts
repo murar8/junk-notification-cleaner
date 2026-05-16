@@ -18,21 +18,25 @@ export enum LogLevel {
 
 function getObjectLabel(name: string, values: Record<string, string | null>) {
   const labels = Object.entries(values)
-    .filter((entry): entry is [string, string] => entry[1] != null)
+    .filter((entry): entry is [string, string] => !!entry[1])
     .map(([label, value]) => `${label}: '${value}'`);
   return `${name}(${labels.join(", ")})`;
 }
 
-function getWindowLabel(window: Meta.Window, app?: Shell.App | null) {
+function getWindowLabel(window: MatchWindow, app?: Shell.App | null) {
   return getObjectLabel("Window", {
     Title: window.title,
     AppId: app?.id ?? null,
+    GtkAppId: window.gtkApplicationId,
+    WmClass: window.wmClass,
+    SandboxedAppId: window.get_sandboxed_app_id(),
   });
 }
 
-function getSourceLabel(source: { title: string; policy: unknown }) {
+function getSourceLabel(source: MatchSource) {
   return getObjectLabel("Source", {
     Title: source.title,
+    Icon: source.icon?.to_string() ?? null,
     PolicyId:
       source.policy instanceof NotificationApplicationPolicy
         ? source.policy.id
@@ -40,8 +44,15 @@ function getSourceLabel(source: { title: string; policy: unknown }) {
   });
 }
 
-type MatchSource = Omit<Source, "icon"> & { icon: Source["icon"] | null };
-type MatchWindow = Omit<Meta.Window, "title"> & { title: string | null };
+type MatchSource = Pick<Source, "title" | "policy"> & {
+  icon: Source["icon"] | null;
+};
+type MatchWindow = Pick<
+  Meta.Window,
+  "wmClass" | "gtkApplicationId" | "get_sandboxed_app_id"
+> & {
+  title: string | null;
+};
 
 // libnotify clients without a desktop-entry hint set source.icon to an
 // app-identifying string. Compare it against window-side identifiers.
@@ -65,11 +76,14 @@ function matchBySnapIcon(icon: string, window: MatchWindow) {
 }
 
 function matchByTitle(title: string, window: MatchWindow) {
+  if (window.title == null) return false;
   return (
     // Proton Mail Bridge: title matches window title
     title === window.title ||
-    // Extract app name from composite title (foo.ts - project - Cursor)
-    title === window.title?.match(/^.+ (-|\|) (.+)$/)?.[2] ||
+    // Extract app name from composite title separated by " - " or " | ".
+    // `^.+` is greedy, so the rightmost separator wins:
+    // "foo.ts - project - Cursor" -> "Cursor", "doc | App" -> "App".
+    title === /^.+ (-|\|) (.+)$/.exec(window.title)?.[2] ||
     // Thunderbird: title matches window manager class (thunderbird)
     title === window.wmClass ||
     // Discord snap: title duplicated matches sandboxed app id (discord_discord)
@@ -101,11 +115,10 @@ export default class JunkNotificationCleaner extends Extension {
   private windowTracker = Shell.WindowTracker.get_default();
 
   private log(level: LogLevel, message: string) {
-    let minLevel = this.settings?.get_string("log-level") as LogLevel | null;
-    minLevel ??= LogLevel.INFO;
-    const levels = Object.values(LogLevel);
-    if (!levels.includes(minLevel)) minLevel = LogLevel.INFO;
-    if (levels.indexOf(level) >= levels.indexOf(minLevel)) {
+    // gschema enum maps debug=0, info=1, warn=2, error=3, matching the
+    // declaration order of LogLevel; compare ints directly.
+    const minLevelIdx = this.settings?.get_enum("log-level") ?? 1;
+    if (Object.values(LogLevel).indexOf(level) >= minLevelIdx) {
       log(`[${this.metadata.uuid}][${level}] ${message}`);
     }
   }
@@ -141,9 +154,9 @@ export default class JunkNotificationCleaner extends Extension {
     }
 
     for (const source of Main.messageTray.getSources()) {
-      const sourceLabel = getSourceLabel(source);
+      const label = `${windowLabel}: ${getSourceLabel(source)}`;
+      const matches = sourceMatchesApp(source, window, appId);
       for (const notification of [...source.notifications]) {
-        const label = `${windowLabel}: ${sourceLabel}`;
         const title = notification.title ?? "(untitled notification)";
         const kind = notification.isTransient ? "transient" : "persistent";
         this.log(
@@ -151,7 +164,7 @@ export default class JunkNotificationCleaner extends Extension {
           `${label}: found ${kind} notification: ${title}`,
         );
         if (notification.isTransient) continue;
-        if (sourceMatchesApp(source, window, appId)) {
+        if (matches) {
           notification.destroy();
           this.log(LogLevel.INFO, `${label}: removed notification: ${title}`);
         }
