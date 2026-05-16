@@ -43,18 +43,9 @@ function getSourceLabel(source: { title: string; policy: unknown }) {
 type MatchSource = Omit<Source, "icon"> & { icon: Source["icon"] | null };
 type MatchWindow = Omit<Meta.Window, "title"> & { title: string | null };
 
-function matchByPolicyId(source: MatchSource, appId: string) {
-  return (
-    source.policy instanceof NotificationApplicationPolicy &&
-    source.policy.id === appId
-  );
-}
-
 // libnotify clients without a desktop-entry hint set source.icon to an
 // app-identifying string. Compare it against window-side identifiers.
-function matchByIcon(source: MatchSource, window: MatchWindow) {
-  const icon = source.icon?.to_string();
-  if (!icon) return false;
+function matchByIcon(icon: string, window: MatchWindow) {
   return (
     // Ghostty deb: icon matches GTK app id (com.mitchellh.ghostty)
     icon === window.gtkApplicationId ||
@@ -65,17 +56,15 @@ function matchByIcon(source: MatchSource, window: MatchWindow) {
   );
 }
 
-// Snap apps have icon paths like /snap/firefox/6638/default256.png; their
-// sandboxed ids use format appname_appname (firefox_firefox).
-function matchBySnapIcon(source: MatchSource, window: MatchWindow) {
-  const regex = /^\/snap\/([^/]+)\//;
-  const snap = source.icon?.to_string()?.match(regex)?.at(1);
+// Snap apps expose icon paths like /snap/firefox/6638/default256.png; their
+// sandboxed ids often duplicate the snap name (firefox_firefox).
+function matchBySnapIcon(icon: string, window: MatchWindow) {
+  const snap = /^\/snap\/([^/]+)\//.exec(icon)?.[1];
   if (!snap) return false;
   return window.get_sandboxed_app_id() === `${snap}_${snap}`;
 }
 
-function matchByTitle({ title }: MatchSource, window: MatchWindow) {
-  if (!title) return false;
+function matchByTitle(title: string, window: MatchWindow) {
   return (
     // Proton Mail Bridge: title matches window title
     title === window.title ||
@@ -88,20 +77,21 @@ function matchByTitle({ title }: MatchSource, window: MatchWindow) {
   );
 }
 
-// Sources backed by NotificationApplicationPolicy carry the desktop-entry id;
-// otherwise fall back to empirical icon/title heuristics against the focused
-// window (covers libnotify clients without a desktop-entry hint).
+// Prefer authoritative identifiers (policy id, source icon) when present.
+// If an icon is set, do not fall back to title matching; title is a
+// last-ditch heuristic reserved for sources that expose neither.
 function sourceMatchesApp(
   source: MatchSource,
   window: MatchWindow,
   appId: string,
 ) {
-  return (
-    matchByPolicyId(source, appId) ||
-    matchByIcon(source, window) ||
-    matchBySnapIcon(source, window) ||
-    matchByTitle(source, window)
-  );
+  if (source.policy instanceof NotificationApplicationPolicy) {
+    return source.policy.id === appId;
+  }
+  const icon = source.icon?.to_string();
+  if (icon) return matchByIcon(icon, window) || matchBySnapIcon(icon, window);
+  if (source.title) return matchByTitle(source.title, window);
+  return false;
 }
 
 export default class JunkNotificationCleaner extends Extension {
@@ -139,8 +129,9 @@ export default class JunkNotificationCleaner extends Extension {
       return;
     }
 
-    // WindowTracker returns the desktop file id (e.g. "com.foo.desktop"),
-    // but NotificationApplicationPolicy.id strips the ".desktop" suffix.
+    // Shell.App.id is the desktop filename (e.g. "org.gnome.Nautilus.desktop");
+    // NotificationApplicationPolicy.id stores the same id without the
+    // ".desktop" suffix, so normalize before comparison.
     const appId = app.id.replace(/\.desktop$/, "");
 
     const excludedApps = settings.get_strv("excluded-apps");

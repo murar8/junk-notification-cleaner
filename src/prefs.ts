@@ -165,10 +165,9 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   }
 
   private buildExcludedAppRow(appId: string): Adw.ActionRow {
-    const row = buildAppRow(
-      GioUnix.DesktopAppInfo.new(`${appId}.desktop`),
-      appId,
-    );
+    const app = tryLoadDesktopApp(appId);
+    const row = buildAppRow(app, appId);
+    if (!app) row.set_subtitle("Uninstalled");
 
     const removeButton = new Gtk.Button({
       icon_name: "user-trash-symbolic",
@@ -252,6 +251,12 @@ function buildSelectableAppList(
   }
 
   return appList;
+}
+
+// DesktopAppInfo.new is typed as non-null but returns null when the
+// .desktop file is missing (e.g. the user uninstalled the app).
+function tryLoadDesktopApp(appId: string): GioUnix.DesktopAppInfo | null {
+  return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
 }
 
 function buildAppRow(
