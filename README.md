@@ -25,6 +25,8 @@ gnome-extensions prefs junk-notification-cleaner@murar8.github.com
 
 ## Installation
 
+Supports GNOME Shell 46–51.
+
 From source:
 
 ```
