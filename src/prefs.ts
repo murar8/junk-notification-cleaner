@@ -29,7 +29,9 @@ const DELETE_TRIGGERS = [
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
   private settings!: Gio.Settings;
 
-  getPreferencesWidget() {
+  // Shell passes an Adw.PreferencesWindow (deprecated in Adw 1.6).
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
+  fillPreferencesWindow(window: Adw.PreferencesWindow) {
     this.settings = this.getSettings();
 
     const page = new Adw.PreferencesPage({
@@ -41,7 +43,9 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
     page.add(this.buildLoggingGroup());
     page.add(this.buildExcludedAppsGroup());
 
-    return page;
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
+    window.add(page);
+    return Promise.resolve();
   }
 
   private buildGeneralGroup(): Adw.PreferencesGroup {
