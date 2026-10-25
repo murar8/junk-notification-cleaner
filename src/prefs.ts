@@ -4,10 +4,7 @@ import GioUnix from "gi://GioUnix";
 import Gtk from "gi://Gtk";
 import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import type GObject from "gi://GObject";
 import type { LogLevel } from "./extension.js";
-
-type DeleteTriggerKey = "delete-on-focus" | "delete-on-close";
 
 const LOG_LEVELS = [
   "debug",
@@ -16,15 +13,29 @@ const LOG_LEVELS = [
   "error",
 ] as const satisfies `${LogLevel}`[];
 
+const DELETE_TRIGGERS = [
+  {
+    key: "delete-on-focus",
+    title: "Delete on Focus",
+    subtitle: "Delete notifications when an application window is focused.",
+  },
+  {
+    key: "delete-on-close",
+    title: "Delete on Close",
+    subtitle: "Delete notifications when an application window is closed.",
+  },
+] as const;
+
 export default class JunkNotificationCleanerPreferences extends ExtensionPreferences {
-  private model!: PreferencesModel;
+  private settings!: Gio.Settings;
 
   getPreferencesWidget() {
-    this.model = new PreferencesModel(this.getSettings());
+    this.settings = this.getSettings();
 
-    const page = new Adw.PreferencesPage();
-    page.set_title("Settings");
-    page.set_icon_name("preferences-system-symbolic");
+    const page = new Adw.PreferencesPage({
+      title: "Settings",
+      icon_name: "preferences-system-symbolic",
+    });
 
     page.add(this.buildGeneralGroup());
     page.add(this.buildLoggingGroup());
@@ -34,83 +45,44 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
   }
 
   private buildGeneralGroup(): Adw.PreferencesGroup {
-    const group = new Adw.PreferencesGroup();
-    group.set_title("General Settings");
+    const group = new Adw.PreferencesGroup({ title: "General Settings" });
 
-    group.add(
-      this.buildSwitchRow({
-        key: "delete-on-focus",
-        title: "Delete on Focus",
-        subtitle: "Delete notifications when an application window is focused.",
-      }),
-    );
-    group.add(
-      this.buildSwitchRow({
-        key: "delete-on-close",
-        title: "Delete on Close",
-        subtitle: "Delete notifications when an application window is closed.",
-      }),
-    );
-
+    for (const { key, title, subtitle } of DELETE_TRIGGERS) {
+      const row = new Adw.SwitchRow({ title, subtitle });
+      this.settings.bind(key, row, "active", Gio.SettingsBindFlags.DEFAULT);
+      group.add(row);
+    }
     return group;
   }
 
-  private buildSwitchRow(opts: {
-    key: DeleteTriggerKey;
-    title: string;
-    subtitle: string;
-  }): Adw.ActionRow {
-    const row = new Adw.ActionRow({
-      title: opts.title,
-      subtitle: opts.subtitle,
-    });
-    const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-    this.model.bindDeleteTrigger(opts.key, toggle, "active");
-    row.add_suffix(toggle);
-    return row;
-  }
-
   private buildLoggingGroup(): Adw.PreferencesGroup {
-    const group = new Adw.PreferencesGroup();
-    group.set_title("Logging");
+    const group = new Adw.PreferencesGroup({ title: "Logging" });
 
-    const row = new Adw.ActionRow({
+    const row = new Adw.ComboRow({
       title: "Log Level",
       subtitle:
         "Set the logging level for troubleshooting notification matching.",
-    });
-    const dropdown = new Gtk.DropDown({
       model: Gtk.StringList.new([...LOG_LEVELS]),
-      valign: Gtk.Align.CENTER,
+      selected: this.settings.get_enum("log-level"),
     });
+    const unsubscribe = onChanged(this.settings, "log-level", () => {
+      row.set_selected(this.settings.get_enum("log-level"));
+    });
+    row.connect("notify::selected", () => {
+      this.settings.set_enum("log-level", row.get_selected());
+    });
+    row.connect("destroy", unsubscribe);
 
-    this.bindLogLevelDropdown(dropdown);
-
-    row.add_suffix(dropdown);
     group.add(row);
     return group;
   }
 
-  private bindLogLevelDropdown(dropdown: Gtk.DropDown): void {
-    const sync = () => {
-      dropdown.set_selected(this.model.getLogLevelIndex());
-    };
-    sync();
-    const changedId = this.model.onLogLevelChanged(sync);
-    dropdown.connect("notify::selected", (dd: Gtk.DropDown) => {
-      this.model.setLogLevelIndex(dd.get_selected());
-    });
-    dropdown.connect("destroy", () => {
-      this.model.disconnect(changedId);
-    });
-  }
-
   private buildExcludedAppsGroup(): Adw.PreferencesGroup {
-    const group = new Adw.PreferencesGroup();
-    group.set_title("Excluded Applications");
-    group.set_description(
-      "Applications whose notifications will not be automatically deleted.",
-    );
+    const group = new Adw.PreferencesGroup({
+      title: "Excluded Applications",
+      description:
+        "Applications whose notifications will not be automatically deleted.",
+    });
 
     const listBox = this.buildExcludedAppsList();
 
@@ -121,10 +93,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       valign: Gtk.Align.CENTER,
     });
     addButton.connect("clicked", (btn: Gtk.Button) => {
-      const parent = btn.get_root() as Gtk.Window | null;
-      this.openAppSelector(parent, (appId) => {
-        this.model.addExcludedApp(appId);
-      });
+      this.openAppSelector(btn);
     });
     group.set_header_suffix(addButton);
     group.add(listBox);
@@ -146,22 +115,14 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       }),
     );
 
-    this.rebuildExcludedAppsList(listBox);
-    const handlerId = this.model.onExcludedAppsChanged(() => {
-      this.rebuildExcludedAppsList(listBox);
+    const model = Gtk.StringList.new(this.settings.get_strv("excluded-apps"));
+    listBox.bind_model(model, (item) => this.buildExcludedAppRow(item.string));
+    const unsubscribe = onChanged(this.settings, "excluded-apps", () => {
+      model.splice(0, model.n_items, this.settings.get_strv("excluded-apps"));
     });
-    listBox.connect("destroy", () => {
-      this.model.disconnect(handlerId);
-    });
+    listBox.connect("destroy", unsubscribe);
 
     return listBox;
-  }
-
-  private rebuildExcludedAppsList(listBox: Gtk.ListBox): void {
-    listBox.remove_all();
-    for (const appId of this.model.getExcludedApps()) {
-      listBox.append(this.buildExcludedAppRow(appId));
-    }
   }
 
   private buildExcludedAppRow(appId: string): Adw.ActionRow {
@@ -176,57 +137,44 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       valign: Gtk.Align.CENTER,
     });
     removeButton.connect("clicked", () => {
-      this.model.removeExcludedApp(appId);
+      removeExcludedApp(this.settings, appId);
     });
     row.add_suffix(removeButton);
 
     return row;
   }
 
-  private openAppSelector(
-    parent: Gtk.Window | null,
-    onSelected: (appId: string) => void,
-  ): void {
-    const window = new Adw.Window({
-      title: "Add Excluded Application",
-      modal: true,
-      default_width: 420,
-      default_height: 520,
-    });
-    if (parent) window.set_transient_for(parent);
-
+  private openAppSelector(parent: Gtk.Widget): void {
     const search = new Gtk.SearchEntry({
       placeholder_text: "Search applications",
       hexpand: true,
     });
-    const headerBar = new Adw.HeaderBar();
-    headerBar.set_title_widget(search);
+    const headerBar = new Adw.HeaderBar({ title_widget: search });
 
     const appList = buildSelectableAppList(
-      this.getSelectableApps(),
+      getSelectableApps(this.settings),
       (appId) => {
-        onSelected(appId);
-        window.close();
+        addExcludedApp(this.settings, appId);
+        dialog.close();
       },
     );
     wireSearchFilter(appList, search);
-    addCloseOnEscape(window);
+    search.connect("stop-search", () => {
+      dialog.close();
+    });
 
-    const toolbarView = new Adw.ToolbarView();
+    const toolbarView = new Adw.ToolbarView({
+      content: new Gtk.ScrolledWindow({ child: appList }),
+    });
     toolbarView.add_top_bar(headerBar);
-    toolbarView.set_content(new Gtk.ScrolledWindow({ child: appList }));
-    window.set_content(toolbarView);
-    window.present();
-    search.grab_focus();
-  }
-
-  private getSelectableApps(): Gio.AppInfo[] {
-    const excluded = new Set(this.model.getExcludedApps());
-    return Gio.AppInfo.get_all()
-      .filter(
-        (a) => a.should_show() && a.get_id() && !excluded.has(getAppId(a)),
-      )
-      .sort((a, b) => a.get_name().localeCompare(b.get_name()));
+    const dialog = new Adw.Dialog({
+      title: "Add Excluded Application",
+      content_width: 420,
+      content_height: 520,
+      child: toolbarView,
+      focus_widget: search,
+    });
+    dialog.present(parent);
   }
 }
 
@@ -245,7 +193,7 @@ function buildSelectableAppList(
 
   for (const app of apps) {
     const appId = getAppId(app);
-    const row = buildAppRow(app, appId, { activatable: true });
+    const row = buildAppRow(app, appId, true);
     appList.append(row);
     row.connect("activated", () => {
       onActivated(appId);
@@ -255,25 +203,15 @@ function buildSelectableAppList(
   return appList;
 }
 
-// DesktopAppInfo.new is typed as non-null but returns null when the
-// .desktop file is missing (e.g. the user uninstalled the app).
-function tryLoadDesktopApp(appId: string): GioUnix.DesktopAppInfo | null {
-  return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
-}
-
 function buildAppRow(
   app: Gio.AppInfo | null,
   appId: string,
-  extra: Partial<Adw.ActionRow.ConstructorProps> = {},
+  activatable = false,
 ): Adw.ActionRow {
   const title = app?.get_name() ?? appId;
-  const row = new Adw.ActionRow({ ...extra, title, subtitle: appId });
+  const row = new Adw.ActionRow({ activatable, title, subtitle: appId });
   const icon = app?.get_icon();
-  if (icon) {
-    const image = Gtk.Image.new_from_gicon(icon);
-    image.set_pixel_size(32);
-    row.add_prefix(image);
-  }
+  if (icon) row.add_prefix(new Gtk.Image({ gicon: icon, pixel_size: 32 }));
   return row;
 }
 
@@ -291,66 +229,44 @@ function wireSearchFilter(appList: Gtk.ListBox, search: Gtk.SearchEntry): void {
   });
 }
 
-function addCloseOnEscape(window: Gtk.Window): void {
-  const controller = new Gtk.ShortcutController();
-  controller.add_shortcut(
-    new Gtk.Shortcut({
-      trigger: Gtk.ShortcutTrigger.parse_string("Escape"),
-      action: Gtk.ShortcutAction.parse_string("action(window.close)"),
-    }),
-  );
-  window.add_controller(controller);
+// DesktopAppInfo.new is typed as non-null but returns null when the
+// .desktop file is missing (e.g. the user uninstalled the app).
+function tryLoadDesktopApp(appId: string): GioUnix.DesktopAppInfo | null {
+  return GioUnix.DesktopAppInfo.new(`${appId}.desktop`);
 }
 
 function getAppId(app: Gio.AppInfo): string {
   return (app.get_id() ?? "").replace(/\.desktop$/, "");
 }
 
-class PreferencesModel {
-  constructor(private settings: Gio.Settings) {}
+function addExcludedApp(settings: Gio.Settings, appId: string): void {
+  const current = settings.get_strv("excluded-apps");
+  if (current.includes(appId)) return;
+  settings.set_strv("excluded-apps", [...current, appId]);
+}
 
-  bindDeleteTrigger(
-    key: DeleteTriggerKey,
-    target: GObject.Object,
-    property: string,
-  ): void {
-    this.settings.bind(key, target, property, Gio.SettingsBindFlags.DEFAULT);
-  }
+function removeExcludedApp(settings: Gio.Settings, appId: string): void {
+  settings.set_strv(
+    "excluded-apps",
+    settings.get_strv("excluded-apps").filter((id) => id !== appId),
+  );
+}
 
-  getExcludedApps(): string[] {
-    return this.settings.get_strv("excluded-apps");
-  }
+function getSelectableApps(settings: Gio.Settings): Gio.AppInfo[] {
+  const excluded = new Set(settings.get_strv("excluded-apps"));
+  return Gio.AppInfo.get_all()
+    .filter((a) => a.should_show() && a.get_id())
+    .filter((a) => !excluded.has(getAppId(a)))
+    .sort((a, b) => a.get_name().localeCompare(b.get_name()));
+}
 
-  addExcludedApp(appId: string): void {
-    const current = this.getExcludedApps();
-    if (current.includes(appId)) return;
-    this.settings.set_strv("excluded-apps", [...current, appId]);
-  }
-
-  removeExcludedApp(appId: string): void {
-    this.settings.set_strv(
-      "excluded-apps",
-      this.getExcludedApps().filter((id) => id !== appId),
-    );
-  }
-
-  onExcludedAppsChanged(handler: () => void): number {
-    return this.settings.connect("changed::excluded-apps", handler);
-  }
-
-  getLogLevelIndex(): number {
-    return this.settings.get_enum("log-level");
-  }
-
-  setLogLevelIndex(idx: number): void {
-    this.settings.set_enum("log-level", idx);
-  }
-
-  onLogLevelChanged(handler: () => void): number {
-    return this.settings.connect("changed::log-level", handler);
-  }
-
-  disconnect(handlerId: number): void {
-    this.settings.disconnect(handlerId);
-  }
+function onChanged(
+  settings: Gio.Settings,
+  key: string,
+  handler: () => void,
+): () => void {
+  const id = settings.connect(`changed::${key}`, handler);
+  return () => {
+    settings.disconnect(id);
+  };
 }
