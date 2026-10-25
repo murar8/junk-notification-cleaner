@@ -106,14 +106,7 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       selection_mode: Gtk.SelectionMode.NONE,
       css_classes: ["boxed-list"],
     });
-    listBox.set_placeholder(
-      new Gtk.Label({
-        label: "No excluded applications.",
-        css_classes: ["dim-label"],
-        margin_top: 12,
-        margin_bottom: 12,
-      }),
-    );
+    listBox.set_placeholder(buildPlaceholder("No excluded applications."));
 
     const model = Gtk.StringList.new(this.settings.get_strv("excluded-apps"));
     listBox.bind_model(model, (item) => this.buildExcludedAppRow(item.string));
@@ -195,14 +188,7 @@ function buildSelectableAppList(
     margin_start: 8,
     margin_end: 8,
   });
-  appList.set_placeholder(
-    new Gtk.Label({
-      label: "No applications found.",
-      css_classes: ["dim-label"],
-      margin_top: 12,
-      margin_bottom: 12,
-    }),
-  );
+  appList.set_placeholder(buildPlaceholder("No applications found."));
 
   for (const app of apps) {
     const appId = getAppId(app);
@@ -214,6 +200,15 @@ function buildSelectableAppList(
   }
 
   return appList;
+}
+
+function buildPlaceholder(label: string): Gtk.Label {
+  return new Gtk.Label({
+    label,
+    css_classes: ["dim-label"],
+    margin_top: 12,
+    margin_bottom: 12,
+  });
 }
 
 function buildAppRow(

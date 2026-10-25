@@ -57,8 +57,6 @@ export default class JunkNotificationCleaner extends Extension {
   private settings: Gio.Settings | null = null;
 
   private log(level: LogLevel, message: string) {
-    // gschema enum maps debug=0, info=1, warn=2, error=3, matching the
-    // declaration order of LogLevel; compare ints directly.
     const minLevelIdx = this.settings?.get_enum("log-level") ?? 1;
     if (Object.values(LogLevel).indexOf(level) >= minLevelIdx) {
       log(`[${this.metadata.uuid}][${level}] ${message}`);
@@ -81,9 +79,7 @@ export default class JunkNotificationCleaner extends Extension {
       return;
     }
 
-    // Shell.App.id is the desktop filename (e.g. "org.gnome.Nautilus.desktop");
-    // NotificationApplicationPolicy.id stores the same id without the
-    // ".desktop" suffix, so normalize before comparison.
+    // Policy ids omit the ".desktop" suffix.
     const appId = app.id.replace(/\.desktop$/, "");
 
     const excludedApps = settings.get_strv("excluded-apps");
@@ -94,9 +90,7 @@ export default class JunkNotificationCleaner extends Extension {
 
     for (const source of Main.messageTray.getSources() as MatchSource[]) {
       const label = `${windowLabel}: ${getSourceLabel(source)}`;
-      // GTK sources use the sender's app id (Ghostty snap: com.mitchellh.ghostty
-      // vs ghostty_ghostty); generic-policy sources may carry a window-backed app,
-      // and never match without one.
+      // Policy id may be the GTK app id (e.g. snaps); generic sources match by app.
       const matches =
         source.policy instanceof NotificationApplicationPolicy
           ? [appId, window.gtkApplicationId].includes(source.policy.id)
