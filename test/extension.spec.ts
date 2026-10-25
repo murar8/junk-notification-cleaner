@@ -15,11 +15,19 @@ vi.mock("resource:///org/gnome/shell/ui/main.js", () => ({
 }));
 
 vi.mock("resource:///org/gnome/shell/extensions/extension.js", () => {
+  const logger = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
   class FakeExtension implements Pick<Extension, "metadata" | "getSettings"> {
     declare getSettings: Extension["getSettings"];
+    declare getLogger: () => typeof logger;
     constructor(public metadata: Extension["metadata"]) {}
   }
   FakeExtension.prototype.getSettings = vi.fn();
+  FakeExtension.prototype.getLogger = () => logger;
   return { Extension: FakeExtension };
 });
 
@@ -55,8 +63,11 @@ const global = {
   window_manager: new FakeEmitter(),
 };
 vi.stubGlobal("global", global);
-const log = vi.fn();
-vi.stubGlobal("log", log);
+
+const logger = vi.mocked(Extension.prototype.getLogger(), {
+  partial: true,
+  deep: true,
+});
 
 const getSources = vi.mocked(Main.messageTray.getSources, {
   partial: true,
@@ -144,8 +155,8 @@ it.each(triggers)(
     trigger();
 
     expect(n.destroy).toHaveBeenCalledOnce();
-    expect(log).toHaveBeenCalledWith(
-      `[test][debug] Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): received ${event}`,
+    expect(logger.debug).toHaveBeenCalledWith(
+      `Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): received ${event}`,
     );
   },
 );
@@ -195,8 +206,8 @@ it("labels untitled notification and source title", () => {
 
   focus();
 
-  expect(log).toHaveBeenCalledWith(
-    "[test][info] Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(AppId: 'org.gnome.clocks.desktop', Title: 'Clocks'): removed notification: (untitled notification)",
+  expect(logger.info).toHaveBeenCalledWith(
+    "Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(AppId: 'org.gnome.clocks.desktop', Title: 'Clocks'): removed notification: (untitled notification)",
   );
 });
 
@@ -224,8 +235,8 @@ it("keeps notification from non-matching policy", () => {
   focus({ title: "Clocks", gtkApplicationId: "com.mitchellh.ghostty" });
 
   expect(n.destroy).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledWith(
-    "[test][debug] Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(PolicyId: 'org.gnome.Solanum'): found persistent notification: hi",
+  expect(logger.debug).toHaveBeenCalledWith(
+    "Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(PolicyId: 'org.gnome.Solanum'): found persistent notification: hi",
   );
 });
 
@@ -261,8 +272,8 @@ it.each([
   focus();
 
   expect(n.destroy).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledWith(
-    `[test][debug] Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(PolicyId: 'org.gnome.clocks'): found ${kind} notification: hi`,
+  expect(logger.debug).toHaveBeenCalledWith(
+    `Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): Source(PolicyId: 'org.gnome.clocks'): found ${kind} notification: hi`,
   );
 });
 
@@ -274,8 +285,8 @@ it("keeps notifications of excluded app", () => {
   focus();
 
   expect(n.destroy).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledWith(
-    "[test][debug] Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): excluded by app id 'org.gnome.clocks'",
+  expect(logger.debug).toHaveBeenCalledWith(
+    "Window(Title: 'Clocks', AppId: 'org.gnome.clocks.desktop', AppName: 'Clocks'): excluded by app id 'org.gnome.clocks'",
   );
 });
 
@@ -285,10 +296,8 @@ it("skips debug logs at info level", () => {
 
   focus();
 
-  expect(log).not.toHaveBeenCalledWith(
-    expect.stringContaining("[test][debug]"),
-  );
-  expect(log).toHaveBeenCalledWith(expect.stringContaining("[test][info]"));
+  expect(logger.debug).not.toHaveBeenCalled();
+  expect(logger.info).toHaveBeenCalled();
 });
 
 it("skips info logs at warn level", () => {
@@ -297,7 +306,8 @@ it("skips info logs at warn level", () => {
 
   focus();
 
-  expect(log).not.toHaveBeenCalled();
+  expect(logger.debug).not.toHaveBeenCalled();
+  expect(logger.info).not.toHaveBeenCalled();
 });
 
 it.each(triggers)("ignores null window on %s", (_, trigger) => {
@@ -328,8 +338,8 @@ it("keeps notifications when window has no app", () => {
   focus({ title: "Clocks", gtkApplicationId: "org.gnome.clocks" });
 
   expect(n.destroy).not.toHaveBeenCalled();
-  expect(log).toHaveBeenCalledWith(
-    "[test][debug] Window(Title: 'Clocks'): no app associated with window",
+  expect(logger.debug).toHaveBeenCalledWith(
+    "Window(Title: 'Clocks'): no app associated with window",
   );
 });
 
