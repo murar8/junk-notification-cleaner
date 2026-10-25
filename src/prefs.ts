@@ -132,11 +132,12 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
 
     const removeButton = new Gtk.Button({
       icon_name: "user-trash-symbolic",
-      tooltip_text: "Remove",
+      tooltip_text: `Remove ${row.get_title()}`,
       css_classes: ["flat"],
       valign: Gtk.Align.CENTER,
     });
     removeButton.connect("clicked", () => {
+      removeButton.get_root()?.set_focus(null);
       removeExcludedApp(this.settings, appId);
     });
     row.add_suffix(removeButton);
@@ -149,6 +150,10 @@ export default class JunkNotificationCleanerPreferences extends ExtensionPrefere
       placeholder_text: "Search applications",
       hexpand: true,
     });
+    search.update_property(
+      [Gtk.AccessibleProperty.LABEL],
+      ["Search applications"],
+    );
     const headerBar = new Adw.HeaderBar({ title_widget: search });
 
     const appList = buildSelectableAppList(
@@ -190,6 +195,14 @@ function buildSelectableAppList(
     margin_start: 8,
     margin_end: 8,
   });
+  appList.set_placeholder(
+    new Gtk.Label({
+      label: "No applications found.",
+      css_classes: ["dim-label"],
+      margin_top: 12,
+      margin_bottom: 12,
+    }),
+  );
 
   for (const app of apps) {
     const appId = getAppId(app);
