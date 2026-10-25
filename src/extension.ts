@@ -55,7 +55,6 @@ type MatchSource = Source & {
 
 export default class JunkNotificationCleaner extends Extension {
   private settings: Gio.Settings | null = null;
-  private windowTracker = Shell.WindowTracker.get_default();
 
   private log(level: LogLevel, message: string) {
     // gschema enum maps debug=0, info=1, warn=2, error=3, matching the
@@ -71,8 +70,9 @@ export default class JunkNotificationCleaner extends Extension {
     window: Meta.Window,
     event: "focus" | "close",
   ) {
+    const windowTracker = Shell.WindowTracker.get_default();
     // get_window_app returns NULL for untracked windows; GIR lacks (nullable).
-    const app = this.windowTracker.get_window_app(window) as Shell.App | null;
+    const app = windowTracker.get_window_app(window) as Shell.App | null;
     const windowLabel = getWindowLabel(window, app);
     this.log(LogLevel.DEBUG, `${windowLabel}: received ${event}`);
 
@@ -139,8 +139,8 @@ export default class JunkNotificationCleaner extends Extension {
   }
 
   disable() {
-    this.settings = null;
     global.display.disconnectObject(this);
     global.window_manager.disconnectObject(this);
+    this.settings = null;
   }
 }
