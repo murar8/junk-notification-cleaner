@@ -55,11 +55,13 @@ type MatchSource = Source & {
 
 export default class JunkNotificationCleaner extends Extension {
   private settings: Gio.Settings | null = null;
+  private windowTracker = Shell.WindowTracker.get_default();
+  private logger = this.getLogger();
 
   private log(level: LogLevel, message: string) {
     const minLevelIdx = this.settings?.get_enum("log-level") ?? 1;
     if (Object.values(LogLevel).indexOf(level) >= minLevelIdx) {
-      log(`[${this.metadata.uuid}][${level}] ${message}`);
+      this.logger[level](message);
     }
   }
 
