@@ -33,7 +33,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@girs/gjs": "^4.9.0",
-    "@girs/gnome-shell": "^50.0.4",
+    "@girs/gnome-shell": "^51.0.1",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "@vitest/eslint-plugin": "^1.6.28",
